@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0">
+	<channel>
+		<title>Medium reuse</title>
+		<item>
+			<guid isPermaLink="false">reused-guid-123</guid>
+			<title>Brand new Medium post</title>
+			<link>https://medium.com/androiddevelopers/new-post?source=rss</link>
+			<description>Net-new content.</description>
+		</item>
+	</channel>
+</rss>

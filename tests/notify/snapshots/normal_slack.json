@@ -1,0 +1,25 @@
+{
+	"blocks": [
+		{
+			"type": "section",
+			"text": {
+				"type": "mrkdwn",
+				"text": "_TL;DR: Big week for Compose and the blog._"
+			}
+		},
+		{
+			"type": "section",
+			"text": {
+				"type": "mrkdwn",
+				"text": "<https://developer.android.com/jetpack/compose/release|Compose Release Notes> [compose-releases/updated]\nStable 1.7.0 released with new APIs."
+			}
+		},
+		{
+			"type": "section",
+			"text": {
+				"type": "mrkdwn",
+				"text": "<https://android-developers.googleblog.com/2024/01/post.html|Android Developer Blog Post> [android-blog/new]"
+			}
+		}
+	]
+}

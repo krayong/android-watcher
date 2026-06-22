@@ -1,0 +1,6 @@
+[Unit]
+Description=android-watcher scheduled run
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/android-watcher run

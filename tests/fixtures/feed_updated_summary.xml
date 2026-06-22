@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+	<title>Android Developers Blog</title>
+	<entry>
+		<id>https://blog.example.com/post-a</id>
+		<title>Post A</title>
+		<link href="https://blog.example.com/post-a"/>
+		<summary>Substantially rewritten body of A.</summary>
+		<updated>2026-06-03T00:00:00Z</updated>
+	</entry>
+	<entry>
+		<id>https://blog.example.com/post-b</id>
+		<title>Post B</title>
+		<link href="https://blog.example.com/post-b"/>
+		<summary>Body of B.</summary>
+		<updated>2026-06-09T00:00:00Z</updated>
+	</entry>
+</feed>

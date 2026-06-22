@@ -1,0 +1,9 @@
+[Unit]
+Description=android-watcher scheduled run timer
+
+[Timer]
+OnCalendar=*-*-* 09:00:00 Europe/Berlin
+Persistent=true
+
+[Install]
+WantedBy=timers.target

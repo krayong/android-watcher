@@ -1,0 +1,112 @@
+name: release
+
+# Manual, bump-driven release. Pick the semver part to bump; the job computes the
+# new version from the current one, commits it to main, publishes to PyPI, refreshes
+# the Homebrew formula, and tags the release last.
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "Semver part to bump (relative to the current version)"
+        required: true
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+
+permissions:
+  contents: write        # push the bump commit, the formula commit, and the tag
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    environment: prod      # holds the PYPI_TOKEN secret
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0   # full history so we can push back and tag
+
+      - name: Configure git as the release bot
+        run: |
+          set -euo pipefail
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch --tags --force
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Set up Python
+        run: uv python install 3.11
+
+      - name: Bump version
+        id: bump
+        run: |
+          uv version --bump "${{ inputs.bump }}"
+          NEW=$(python3 -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+          echo "version=$NEW" >> "$GITHUB_OUTPUT"
+          echo "Bumped ${{ inputs.bump }} -> $NEW"
+
+      - name: Run tests (no live network)
+        run: uv run pytest
+
+      - name: Build sdist and wheel
+        run: uv build
+
+      - name: Commit version bump to main
+        run: |
+          git add pyproject.toml uv.lock
+          git commit -m "chore: bump version to v${{ steps.bump.outputs.version }}"
+          git push origin HEAD:main
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.PYPI_TOKEN }}
+
+      - name: Update Homebrew formula
+        run: |
+          VERSION="${{ steps.bump.outputs.version }}"
+          # PyPI's JSON index lags publish by a few seconds; poll until the release shows up.
+          for i in $(seq 1 30); do
+            if curl -fsSL "https://pypi.org/pypi/android-watcher/${VERSION}/json" -o /tmp/pypi.json; then
+              break
+            fi
+            echo "Waiting for PyPI to index ${VERSION} (attempt ${i})…"
+            sleep 10
+          done
+          read -r SDIST_URL SDIST_SHA < <(python3 - <<'PY'
+          import json
+          d = json.load(open("/tmp/pypi.json"))
+          s = next(u for u in d["urls"] if u["packagetype"] == "sdist")
+          print(s["url"], s["digests"]["sha256"])
+          PY
+          )
+          # Point the formula at the freshly published sdist + its hash.
+          python3 - "$SDIST_URL" "$SDIST_SHA" <<'PY'
+          import re, sys
+          url, sha = sys.argv[1], sys.argv[2]
+          p = "Formula/android-watcher.rb"
+          s = open(p).read()
+          s = re.sub(r'  url ".*"', f'  url "{url}"', s, count=1)
+          s = re.sub(r'  sha256 ".*"', f'  sha256 "{sha}"', s, count=1)
+          open(p, "w").write(s)
+          PY
+          # Regenerate every pinned dependency `resource` block against this release.
+          brew update-python-resources Formula/android-watcher.rb
+          git add Formula/android-watcher.rb
+          git commit -m "chore: update homebrew formula for v${VERSION}"
+          git push origin HEAD:main
+
+      - name: Tag the release
+        run: |
+          git tag "v${{ steps.bump.outputs.version }}"
+          git push origin "v${{ steps.bump.outputs.version }}"

@@ -1,0 +1,49 @@
+# Project-specific
+.idea/
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Packaging / build
+build/
+dist/
+*.egg
+*.egg-info/
+.eggs/
+wheels/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+# NOTE: uv.lock IS committed (pinned deps); do not ignore it.
+
+# Test / coverage / type / lint caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.pyright/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+.tox/
+.nox/
+
+# Local env and secrets
+.env
+.env.*
+
+# Editors
+.vscode/
+*.swp
+
+# OS cruft
+.DS_Store
+Thumbs.db
+
+# Planning and design docs (local-only working scratch, not shipped)
+docs/superpowers/

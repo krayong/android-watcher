@@ -1,0 +1,24 @@
+root = true
+
+# Tabs, width 4, everywhere by default.
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = tab
+indent_size = 4
+tab_width = 4
+
+# Python line length matches [tool.ruff]; indentation is tabs (ruff format).
+[*.py]
+max_line_length = 100
+
+# YAML forbids tab indentation (spec), so it must use spaces.
+[*.{yml,yaml}]
+indent_style = space
+indent_size = 2
+
+# Markdown keeps trailing whitespace (two trailing spaces = hard line break).
+[*.md]
+trim_trailing_whitespace = false

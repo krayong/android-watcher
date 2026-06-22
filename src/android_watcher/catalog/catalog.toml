@@ -1,0 +1,531 @@
+# android-watcher shipped catalog
+# Curated index of official Google Android / Android-developer sources.
+# Edit this file (and open a PR) to add or change a source. See CONTRIBUTING.md.
+# dac = developer.android.com
+#
+# Fields per [[source]]:
+#   id              unique slug
+#   name            human label
+#   category        one of: platform-release | api-reference | tooling |
+#                           guides | dev-blog | design | news
+#   enabled         bool; disabled entries ship but are not watched
+#   detector        one of: feed | android_sitemap | sitemap | content
+#   url             canonical page URL
+#   path_prefix     android_sitemap: match sitemap URLs under this path
+#   feed_url        feed: RSS/Atom URL. NOTE: every feed_url below is a
+#                   CANDIDATE and must be confirmed by scripts/verify_catalog.py
+#                   before release; not yet verified (Appendix A defers these).
+#   content_selector  content: optional CSS selector ("" = readability)
+#   default_weight  0 = use category weight; non-zero overrides
+
+# ---------------------------------------------------------------------------
+# Enabled (32)
+# ---------------------------------------------------------------------------
+
+[[source]]
+id = "android-versions"
+name = "Android platform release notes"
+category = "platform-release"
+enabled = true
+detector = "android_sitemap"
+url = "https://developer.android.com/about/versions"
+path_prefix = "/about/versions"
+feed_url = ""
+content_selector = ""
+default_weight = 0
+
+[[source]]
+id = "source-android"
+name = "Android Open Source Project (source.android.com)"
+category = "platform-release"
+enabled = true
+detector = "android_sitemap"
+url = "https://source.android.com/"
+path_prefix = ""
+feed_url = ""
+content_selector = ""
+default_weight = 0
+exclude_prefixes = ["/reference"]
+
+[[source]]
+id = "android-security-bulletins"
+name = "Android Security Bulletins"
+category = "platform-release"
+enabled = true
+detector = "content"
+url = "https://source.android.com/docs/security/bulletin"
+path_prefix = ""
+feed_url = ""
+content_selector = ""
+default_weight = 0
+
+[[source]]
+id = "android-studio-releases"
+name = "Android Studio release notes"
+category = "tooling"
+enabled = true
+detector = "android_sitemap"
+url = "https://developer.android.com/studio/releases"
+path_prefix = "/studio/releases"
+feed_url = ""
+content_selector = ""
+default_weight = 0
+
+[[source]]
+id = "android-studio-preview"
+name = "Android Studio Canary / preview"
+category = "tooling"
+enabled = true
+detector = "android_sitemap"
+url = "https://developer.android.com/studio/preview"
+path_prefix = "/studio/preview"
+feed_url = ""
+content_selector = ""
+default_weight = 0
+
+[[source]]
+id = "agp-releases"
+name = "Android Gradle Plugin release notes"
+category = "tooling"
+enabled = true
+detector = "android_sitemap"
+url = "https://developer.android.com/build/releases/gradle-plugin"
+path_prefix = "/build/releases/gradle-plugin"
+feed_url = ""
+content_selector = ""
+default_weight = 0
+
+[[source]]
+id = "platform-tools"
+name = "SDK Platform Tools"
+category = "tooling"
+enabled = true
+detector = "android_sitemap"
+url = "https://developer.android.com/tools/releases/platform-tools"
+path_prefix = "/tools/releases/platform-tools"
+feed_url = ""
+content_selector = ""
+default_weight = 0
+
+[[source]]
+id = "build-tools"
+name = "SDK Build Tools"
+category = "tooling"
+enabled = true
+detector = "android_sitemap"
+url = "https://developer.android.com/tools/releases/build-tools"
+path_prefix = "/tools/releases/build-tools"
+feed_url = ""
+content_selector = ""
+default_weight = 0
+
+[[source]]
+id = "emulator"
+name = "Emulator release notes"
+category = "tooling"
+enabled = true
+detector = "android_sitemap"
+url = "https://developer.android.com/studio/releases/emulator"
+path_prefix = "/studio/releases/emulator"
+feed_url = ""
+content_selector = ""
+default_weight = 0
+
+[[source]]
+id = "ndk"
+name = "NDK revision history"
+category = "tooling"
+enabled = true
+detector = "android_sitemap"
+url = "https://developer.android.com/ndk/downloads/revision_history"
+path_prefix = "/ndk/downloads/revision_history"
+feed_url = ""
+content_selector = ""
+default_weight = 0
+
+[[source]]
+id = "androidx-releases"
+name = "AndroidX release notes (aggregate)"
+category = "api-reference"
+enabled = true
+detector = "feed"
+url = "https://developer.android.com/jetpack/androidx/versions"
+path_prefix = ""
+feed_url = "https://developer.android.com/feeds/androidx-release-notes.xml"   # CANDIDATE — confirm via scripts/verify_catalog.py before release; not yet verified
+content_selector = ""
+default_weight = 0
+
+[[source]]
+id = "compose-releases"
+name = "Jetpack Compose release notes"
+category = "api-reference"
+enabled = true
+detector = "android_sitemap"
+url = "https://developer.android.com/jetpack/androidx/releases/compose"
+path_prefix = "/jetpack/androidx/releases/compose"
+feed_url = ""
+content_selector = ""
+default_weight = 0
+
+[[source]]
+id = "android-dev-blog"
+name = "Android Developers Blog"
+category = "dev-blog"
+enabled = true
+detector = "feed"
+url = "https://android-developers.googleblog.com"
+path_prefix = ""
+feed_url = "https://android-developers.googleblog.com/feeds/posts/default"   # CANDIDATE — confirm via scripts/verify_catalog.py before release; not yet verified
+content_selector = ""
+default_weight = 0
+
+[[source]]
+id = "android-dev-medium"
+name = "Android Developers on Medium"
+category = "dev-blog"
+enabled = true
+detector = "feed"
+url = "https://medium.com/androiddevelopers"
+path_prefix = ""
+feed_url = "https://medium.com/feed/androiddevelopers"   # CANDIDATE — confirm via scripts/verify_catalog.py before release; not yet verified
+content_selector = ""
+default_weight = 0
+
+[[source]]
+id = "keyword-android"
+name = "The Keyword: Android"
+category = "news"
+enabled = true
+detector = "feed"
+url = "https://blog.google/products-and-platforms/platforms/android/"
+path_prefix = ""
+feed_url = "https://blog.google/products-and-platforms/platforms/android/rss/"   # CANDIDATE — confirm via scripts/verify_catalog.py before release; not yet verified
+content_selector = ""
+default_weight = 0
+
+[[source]]
+id = "now-in-android"
+name = "Now in Android"
+category = "dev-blog"
+enabled = true
+detector = "android_sitemap"
+url = "https://developer.android.com/series/now-in-android"
+path_prefix = "/series/now-in-android"
+feed_url = ""
+content_selector = ""
+default_weight = 0
+
+[[source]]
+id = "android-tv"
+name = "Android TV"
+category = "guides"
+enabled = true
+detector = "android_sitemap"
+url = "https://developer.android.com/tv"
+path_prefix = "/tv"
+feed_url = ""
+content_selector = ""
+default_weight = 0
+
+[[source]]
+id = "android-cars"
+name = "Android for Cars"
+category = "guides"
+enabled = true
+detector = "android_sitemap"
+url = "https://developer.android.com/cars"
+path_prefix = "/cars"
+feed_url = ""
+content_selector = ""
+default_weight = 0
+
+[[source]]
+id = "android-xr"
+name = "Android XR"
+category = "guides"
+enabled = true
+detector = "android_sitemap"
+url = "https://developer.android.com/xr"
+path_prefix = "/xr"
+feed_url = ""
+content_selector = ""
+default_weight = 0
+
+[[source]]
+id = "wear-os"
+name = "Wear OS"
+category = "guides"
+enabled = true
+detector = "android_sitemap"
+url = "https://developer.android.com/wear"
+path_prefix = "/wear"
+feed_url = ""
+content_selector = ""
+default_weight = 0
+
+[[source]]
+id = "large-screens"
+name = "Large screens / foldables"
+category = "guides"
+enabled = true
+detector = "android_sitemap"
+url = "https://developer.android.com/guide/topics/large-screens"
+path_prefix = "/guide/topics/large-screens"
+feed_url = ""
+content_selector = ""
+default_weight = 0
+
+[[source]]
+id = "health-connect"
+name = "Health Connect"
+category = "guides"
+enabled = true
+detector = "android_sitemap"
+url = "https://developer.android.com/health-and-fitness"
+path_prefix = "/health-and-fitness"
+feed_url = ""
+content_selector = ""
+default_weight = 0
+
+[[source]]
+id = "games"
+name = "Android games"
+category = "guides"
+enabled = true
+detector = "android_sitemap"
+url = "https://developer.android.com/games"
+path_prefix = "/games"
+feed_url = ""
+content_selector = ""
+default_weight = 0
+
+[[source]]
+id = "enterprise"
+name = "Android Enterprise (Work)"
+category = "guides"
+enabled = true
+detector = "android_sitemap"
+url = "https://developer.android.com/work"
+path_prefix = "/work"
+feed_url = ""
+content_selector = ""
+default_weight = 0
+
+[[source]]
+id = "ai"
+name = "AI on Android (Gemini / on-device ML)"
+category = "guides"
+enabled = true
+detector = "android_sitemap"
+url = "https://developer.android.com/ai"
+path_prefix = "/ai"
+feed_url = ""
+content_selector = ""
+default_weight = 0
+
+[[source]]
+id = "kotlin"
+name = "Kotlin on Android"
+category = "guides"
+enabled = true
+detector = "android_sitemap"
+url = "https://developer.android.com/kotlin"
+path_prefix = "/kotlin"
+feed_url = ""
+content_selector = ""
+default_weight = 0
+
+[[source]]
+id = "privacy-security"
+name = "Privacy & security"
+category = "guides"
+enabled = true
+detector = "android_sitemap"
+url = "https://developer.android.com/privacy-and-security"
+path_prefix = "/privacy-and-security"
+feed_url = ""
+content_selector = ""
+default_weight = 0
+
+[[source]]
+id = "quality"
+name = "Core App Quality / vitals"
+category = "guides"
+enabled = true
+detector = "android_sitemap"
+url = "https://developer.android.com/quality"
+path_prefix = "/quality"
+feed_url = ""
+content_selector = ""
+default_weight = 0
+
+[[source]]
+id = "distribute"
+name = "Distribution hub"
+category = "guides"
+enabled = true
+detector = "android_sitemap"
+url = "https://developer.android.com/distribute"
+path_prefix = "/distribute"
+feed_url = ""
+content_selector = ""
+default_weight = 0
+
+[[source]]
+id = "play-services-releases"
+name = "Play services release notes"
+category = "api-reference"
+enabled = true
+detector = "content"
+url = "https://developers.google.com/android/guides/releases"
+path_prefix = ""
+feed_url = ""
+content_selector = ""
+default_weight = 0
+
+[[source]]
+id = "play-billing"
+name = "Play Billing"
+category = "guides"
+enabled = true
+detector = "android_sitemap"
+url = "https://developer.android.com/google/play/billing"
+path_prefix = "/google/play/billing"
+feed_url = ""
+content_selector = ""
+default_weight = 0
+
+# androidx-per-library watches all AndroidX release notes under
+# /jetpack/androidx/releases; compose-releases (a longer prefix) carves out its
+# own subtree via most-specific-prefix matching, so neither double-reports.
+[[source]]
+id = "androidx-per-library"
+name = "AndroidX per-library release notes"
+category = "api-reference"
+enabled = true
+detector = "android_sitemap"
+url = "https://developer.android.com/jetpack/androidx/releases"
+path_prefix = "/jetpack/androidx/releases"
+feed_url = ""
+content_selector = ""
+default_weight = 0
+
+# Broad documentation sections: each watches a whole top-level area for edits.
+# Narrower release-notes sources nested under these (e.g. /studio/releases,
+# /tools/releases/platform-tools, /ndk/downloads/revision_history) carve out
+# their own subtrees via most-specific-prefix matching, so neither double-reports.
+[[source]]
+id = "develop-docs"
+name = "Develop guides"
+category = "guides"
+enabled = true
+detector = "android_sitemap"
+url = "https://developer.android.com/develop"
+path_prefix = "/develop"
+feed_url = ""
+content_selector = ""
+default_weight = 0
+
+[[source]]
+id = "topic-hubs"
+name = "Topic hubs"
+category = "guides"
+enabled = true
+detector = "android_sitemap"
+url = "https://developer.android.com/topic"
+path_prefix = "/topic"
+feed_url = ""
+content_selector = ""
+default_weight = 0
+
+[[source]]
+id = "design-guidance"
+name = "Design guidance"
+category = "design"
+enabled = true
+detector = "android_sitemap"
+url = "https://developer.android.com/design"
+path_prefix = "/design"
+feed_url = ""
+content_selector = ""
+default_weight = 0
+
+[[source]]
+id = "android-studio-docs"
+name = "Android Studio docs"
+category = "tooling"
+enabled = true
+detector = "android_sitemap"
+url = "https://developer.android.com/studio"
+path_prefix = "/studio"
+feed_url = ""
+content_selector = ""
+default_weight = 0
+
+[[source]]
+id = "ndk-docs"
+name = "NDK docs"
+category = "tooling"
+enabled = true
+detector = "android_sitemap"
+url = "https://developer.android.com/ndk"
+path_prefix = "/ndk"
+feed_url = ""
+content_selector = ""
+default_weight = 0
+
+[[source]]
+id = "sdk-tools-docs"
+name = "SDK tools docs"
+category = "tooling"
+enabled = true
+detector = "android_sitemap"
+url = "https://developer.android.com/tools"
+path_prefix = "/tools"
+feed_url = ""
+content_selector = ""
+default_weight = 0
+
+# Comprehensive host catch-alls. Each watches a whole host's sitemap; the curated
+# sources above carve out their subtrees via most-specific-prefix matching, so
+# nothing double-reports. Reference docs are filtered (index/summary only, or
+# dropped); /sdk is dropped (redirects to /studio); per-symbol class pages go.
+[[source]]
+id = "developer-android-all"
+name = "developer.android.com (all)"
+category = "guides"
+enabled = true
+detector = "android_sitemap"
+url = "https://developer.android.com/"
+path_prefix = ""
+feed_url = ""
+content_selector = ""
+default_weight = 0
+exclude_prefixes = ["/sdk"]
+reference_mode = "index_only"
+
+[[source]]
+id = "developers-google-android"
+name = "developers.google.com Android docs"
+category = "guides"
+enabled = true
+detector = "android_sitemap"
+url = "https://developers.google.com/"
+path_prefix = ""
+feed_url = ""
+content_selector = ""
+default_weight = 0
+require_segment = "android"
+reference_mode = "drop"
+
+[[source]]
+id = "kotlin-lang"
+name = "Kotlin language docs"
+category = "guides"
+enabled = true
+detector = "android_sitemap"
+url = "https://kotlinlang.org/"
+path_prefix = ""
+feed_url = ""
+content_selector = ""
+default_weight = 0

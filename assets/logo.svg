@@ -1,0 +1,19 @@
+<svg aria-label="Android Watcher logo" height="256" role="img" viewBox="0 0 256 256" width="256"
+     xmlns="http://www.w3.org/2000/svg">
+	<defs>
+		<linearGradient id="tile" x1="0" x2="0" y1="0" y2="1">
+			<stop offset="0" stop-color="#1B2A38"/>
+			<stop offset="1" stop-color="#0C1119"/>
+		</linearGradient>
+	</defs>
+	<rect fill="url(#tile)" height="240" rx="54" width="240" x="8" y="8"/>
+	<!-- broadcast / monitoring waves: watching official Android sources -->
+	<g fill="none" stroke="#3DDC84" stroke-linecap="round">
+		<path d="M84 168 a44 44 0 0 1 88 0" opacity="0.85" stroke-width="12"/>
+		<path d="M64 168 a64 64 0 0 1 128 0" opacity="0.5" stroke-width="12"/>
+		<path d="M44 168 a84 84 0 0 1 168 0" opacity="0.28" stroke-width="12"/>
+	</g>
+	<circle cx="128" cy="168" fill="#3DDC84" r="16"/>
+	<!-- a change detected -->
+	<circle cx="196" cy="64" fill="#FF7043" r="18"/>
+</svg>

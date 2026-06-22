@@ -1,0 +1,33 @@
+# Local lint + format + hygiene enforcement.
+# Install once with: uv run pre-commit install
+# Run on all files with: uv run pre-commit run --all-files
+# The ruff version here is kept in sync with the pinned dev dependency.
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.18
+    hooks:
+      - id: ruff
+        name: ruff (lint)
+        args: [ --fix ]
+      - id: ruff-format
+        name: ruff (format)
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        args: [ --markdown-linebreak-ext=md ]
+      - id: end-of-file-fixer
+      - id: check-json
+      - id: check-yaml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+
+  - repo: https://github.com/trufflesecurity/trufflehog
+    rev: v3.88.1
+    hooks:
+      - id: trufflehog
+        name: Scan for secrets
+        entry: trufflehog git file://. --since-commit HEAD --fail
+        language: golang
+        pass_filenames: false

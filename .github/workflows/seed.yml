@@ -1,0 +1,67 @@
+name: seed
+
+# Regenerate the bundled baseline seed (src/android_watcher/seed/seed.sql.gz).
+# This runs the full, polite, hours-long crawl of the catalog sources, so it is
+# DELIBERATELY kept off the release path (release.yml just bundles whatever seed
+# is committed). Trigger it manually from the Actions tab, or let the weekly
+# schedule refresh it. You can also generate it locally and push:
+#   uv run python scripts/build_seed.py
+on:
+  workflow_dispatch:
+
+  schedule:
+    - cron: "30 23 * * 0"   # Mondays 05:00 IST (Sun 23:30 UTC)
+
+permissions:
+  contents: write          # commit + push the refreshed seed
+
+concurrency:
+  group: seed
+  cancel-in-progress: false
+
+jobs:
+  build-seed:
+    runs-on: ubuntu-latest
+
+    # The crawl is throttled by a per-host crawl delay; bound it well under the
+    # 6h hard limit. The WIP-DB cache lets a re-run resume an interrupted crawl.
+    timeout-minutes: 350
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Set up Python
+        run: uv python install 3.11
+
+      - name: Sync dependencies
+        run: uv sync --frozen
+
+      # Persist the partial crawl DB so a retried run continues instead of
+      # restarting (baseline_all skips URLs already baselined).
+      - name: Restore crawl progress
+        uses: actions/cache@v4
+        with:
+          path: .seed-wip.db
+          key: seed-wip-${{ github.run_id }}
+          restore-keys: seed-wip-
+
+      - name: Build the baseline seed
+        run: uv run python scripts/build_seed.py --db .seed-wip.db
+
+      - name: Commit refreshed seed
+        run: |
+          set -euo pipefail
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add src/android_watcher/seed/seed.sql.gz
+          if git diff --staged --quiet; then
+            echo "seed unchanged; nothing to commit"
+          else
+            git commit -m "chore: refresh baseline seed"
+            git push origin HEAD:main
+          fi

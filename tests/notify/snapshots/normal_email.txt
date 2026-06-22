@@ -1,0 +1,4 @@
+TL;DR: Big week for Compose and the blog.
+Compose Release Notes [compose-releases/updated]
+  Stable 1.7.0 released with new APIs.
+Android Developer Blog Post [android-blog/new]
