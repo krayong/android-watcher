@@ -1,8 +1,9 @@
 name: release
 
 # Manual, bump-driven release. Pick the semver part to bump; the job computes the
-# new version from the current one, commits it to main, publishes to PyPI, refreshes
-# the Homebrew formula, and tags the release last.
+# new version from the current one, commits it to main, publishes to PyPI, tags and
+# publishes a GitHub release, then refreshes the Homebrew formula as a best-effort,
+# non-blocking step.
 on:
   workflow_dispatch:
     inputs:
@@ -72,7 +73,33 @@ jobs:
         with:
           password: ${{ secrets.PYPI_TOKEN }}
 
+      # Tag and publish a GitHub release right after the publish succeeds, before
+      # the best-effort Homebrew step. A formula hiccup must never leave a
+      # published version untagged or unreleased. --generate-notes builds the
+      # changelog from merged PRs and commits since the previous release.
+      - name: Tag and publish GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ steps.bump.outputs.version }}"
+          git tag "v${VERSION}"
+          git push origin "v${VERSION}"
+          gh release create "v${VERSION}" \
+            --title "v${VERSION}" \
+            --generate-notes \
+            --verify-tag \
+            --latest
+
+      - name: Set up Homebrew
+        uses: Homebrew/actions/setup-homebrew@master
+
+      # Best-effort and non-blocking: `brew update-python-resources` can fail to
+      # resolve a same-day PyPI upload (its reproducibility cutoff predates the
+      # publish) and requires a tap on newer Homebrew. Never let that fail the
+      # release; regenerate the resource blocks out-of-band once PyPI indexing
+      # settles, then commit the refreshed formula.
       - name: Update Homebrew formula
+        continue-on-error: true
         run: |
           VERSION="${{ steps.bump.outputs.version }}"
           # PyPI's JSON index lags publish by a few seconds; poll until the release shows up.
@@ -105,8 +132,3 @@ jobs:
           git add Formula/android-watcher.rb
           git commit -m "chore: update homebrew formula for v${VERSION}"
           git push origin HEAD:main
-
-      - name: Tag the release
-        run: |
-          git tag "v${{ steps.bump.outputs.version }}"
-          git push origin "v${{ steps.bump.outputs.version }}"

@@ -6,8 +6,8 @@ class AndroidWatcher < Formula
   # url + sha256 point at the PyPI sdist for the released version. The release
   # workflow rewrites both on every version bump, then regenerates the `resource`
   # blocks below with `brew update-python-resources`. Do not hand-edit.
-  url "https://files.pythonhosted.org/packages/source/a/android-watcher/android_watcher-0.0.0.tar.gz"
-  sha256 "0000000000000000000000000000000000000000000000000000000000000000"
+  url "https://files.pythonhosted.org/packages/31/5c/0ac31004a57aaa32b117c1d318cb5c8256adae9f95b7c874187335f47b3b/android_watcher-1.0.0.tar.gz"
+  sha256 "0844583243b9d94ef4211c80a8be6e5b0efac44d21bdb224aa6b02a5670cc7c3"
   license "MIT"
 
   depends_on "python@3.11"
