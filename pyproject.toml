@@ -1,6 +1,6 @@
 [project]
 name = "android-watcher"
-version = "0.0.0"
+version = "1.0.0"
 description = "Self-hosted CLI that watches Google's official Android sites and delivers AI-triaged change digests."
 readme = "README.md"
 license = { text = "MIT" }
