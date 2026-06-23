@@ -51,3 +51,23 @@ def test_render_crontab_emits_cron_tz() -> None:
 	assert "CRON_TZ=America/New_York" in result
 	assert result.startswith(CRON_BEGIN)
 	assert result.rstrip("\n").endswith(CRON_END.rstrip("\n"))
+
+
+def test_render_crontab_embeds_path_env() -> None:
+	# cron runs with a minimal PATH; embed the snapshot so the run reaches claude.
+	sched = ScheduleConfig(interval="daily", at="09:00")
+	result = render_crontab(
+		"/usr/bin/android-watcher run",
+		sched,
+		"Europe/Berlin",
+		path_env="/home/me/.local/bin:/usr/bin:/bin",
+	)
+	assert "PATH=/home/me/.local/bin:/usr/bin:/bin" in result
+	# The PATH assignment must precede the schedule line to take effect.
+	assert result.index("PATH=/home/me") < result.index("0 9 * * *")
+
+
+def test_render_crontab_omits_path_without_path_env() -> None:
+	sched = ScheduleConfig(interval="daily", at="09:00")
+	result = render_crontab("/usr/bin/android-watcher run", sched, "Europe/Berlin")
+	assert "\nPATH=" not in result

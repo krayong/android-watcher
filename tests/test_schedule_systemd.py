@@ -59,3 +59,17 @@ def test_render_service_golden() -> None:
 	golden = (FIXTURES / "android-watcher.service").read_text()
 	assert result == golden
 	assert "Type=oneshot" in result
+
+
+def test_render_service_embeds_path_env() -> None:
+	# systemd user services start from a minimal PATH; embed the snapshot so the
+	# run can reach the claude CLI for triage.
+	result = render_service(
+		"/usr/bin/android-watcher", ["run"], path_env="/home/me/.local/bin:/usr/bin:/bin"
+	)
+	assert "Environment=PATH=/home/me/.local/bin:/usr/bin:/bin" in result
+
+
+def test_render_service_omits_env_without_path() -> None:
+	result = render_service("/usr/bin/android-watcher", ["run"])
+	assert "Environment=" not in result
