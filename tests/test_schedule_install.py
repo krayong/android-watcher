@@ -56,6 +56,7 @@ def test_install_macos_writes_plist_and_loads(monkeypatch, tmp_path):
 	monkeypatch.setattr(sched_mod, "_platform", lambda: "darwin")
 	monkeypatch.setattr(sched_mod, "_launchd_plist_path", lambda: str(plist_path))
 	monkeypatch.setattr(sched_mod, "_program_args", lambda: ["/usr/bin/android-watcher", "run"])
+	monkeypatch.setattr(sched_mod, "_env_path", lambda: "/home/me/.local/bin:/usr/bin:/bin")
 
 	def fake_run(argv, *, input=None):
 		calls.append(argv)
@@ -68,9 +69,14 @@ def test_install_macos_writes_plist_and_loads(monkeypatch, tmp_path):
 
 	assert plist_path.exists()
 	expected_plist = render_plist(
-		LAUNCHD_LABEL, ["/usr/bin/android-watcher", "run"], config.schedule
+		LAUNCHD_LABEL,
+		["/usr/bin/android-watcher", "run"],
+		config.schedule,
+		"/home/me/.local/bin:/usr/bin:/bin",
 	)
 	assert plist_path.read_text() == expected_plist
+	# The installed plist must carry the snapshotted PATH so triage can reach claude.
+	assert "/home/me/.local/bin:/usr/bin:/bin" in plist_path.read_text()
 
 	# Must call launchctl load (with -w flag)
 	assert ["launchctl", "load", "-w", str(plist_path)] in calls
@@ -104,6 +110,7 @@ def test_install_linux_systemd_writes_units_and_enables(monkeypatch, tmp_path):
 	monkeypatch.setattr(sched_mod, "_local_tz", lambda: "Europe/Berlin")
 	monkeypatch.setattr(sched_mod, "_linger_enabled", lambda: True)
 	monkeypatch.setattr(sched_mod, "_program_args", lambda: ["/usr/bin/android-watcher", "run"])
+	monkeypatch.setattr(sched_mod, "_env_path", lambda: "/home/me/.local/bin:/usr/bin:/bin")
 
 	def fake_run(argv, *, input=None):
 		calls.append(argv)
@@ -119,8 +126,11 @@ def test_install_linux_systemd_writes_units_and_enables(monkeypatch, tmp_path):
 	assert service_file.exists()
 	assert timer_file.exists()
 
-	expected_service = render_service("/usr/bin/android-watcher", ["run"])
+	expected_service = render_service(
+		"/usr/bin/android-watcher", ["run"], "/home/me/.local/bin:/usr/bin:/bin"
+	)
 	assert service_file.read_text() == expected_service
+	assert "Environment=PATH=/home/me/.local/bin:/usr/bin:/bin" in service_file.read_text()
 
 	expected_timer = render_timer(config.schedule, "Europe/Berlin")
 	assert timer_file.read_text() == expected_timer
@@ -162,6 +172,7 @@ def test_install_linux_crontab_fallback(monkeypatch, tmp_path):
 	monkeypatch.setattr(sched_mod, "_has_systemd", lambda: False)
 	monkeypatch.setattr(sched_mod, "_local_tz", lambda: "Europe/Berlin")
 	monkeypatch.setattr(sched_mod, "_program_args", lambda: ["/usr/bin/android-watcher", "run"])
+	monkeypatch.setattr(sched_mod, "_env_path", lambda: "/home/me/.local/bin:/usr/bin:/bin")
 
 	def fake_run(argv, *, input=None):
 		if argv == ["crontab", "-l"]:
@@ -180,6 +191,7 @@ def test_install_linux_crontab_fallback(monkeypatch, tmp_path):
 	assert "# existing line" in new_crontab
 	assert CRON_BEGIN in new_crontab
 	assert "CRON_TZ=Europe/Berlin" in new_crontab
+	assert "PATH=/home/me/.local/bin:/usr/bin:/bin" in new_crontab
 	assert CRON_END in new_crontab
 
 

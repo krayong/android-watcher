@@ -80,3 +80,28 @@ def test_render_plist_daily_golden() -> None:
 	)
 	golden = (FIXTURES / "launchd_daily.plist").read_text()
 	assert result == golden
+
+
+def test_render_plist_embeds_path_env() -> None:
+	# A launchd job inherits a bare PATH; the embedded EnvironmentVariables/PATH
+	# is what lets the scheduled run reach the claude CLI for triage.
+	sched = ScheduleConfig(interval="daily", at="09:00")
+	result = render_plist(
+		"com.krayong.android-watcher",
+		["/usr/bin/android-watcher", "run"],
+		sched,
+		path_env="/home/me/.local/bin:/usr/bin:/bin",
+	)
+	assert "<key>EnvironmentVariables</key>" in result
+	assert "<key>PATH</key>" in result
+	assert "/home/me/.local/bin:/usr/bin:/bin" in result
+
+
+def test_render_plist_omits_env_without_path() -> None:
+	sched = ScheduleConfig(interval="daily", at="09:00")
+	result = render_plist(
+		"com.krayong.android-watcher",
+		["/usr/bin/android-watcher", "run"],
+		sched,
+	)
+	assert "EnvironmentVariables" not in result

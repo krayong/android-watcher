@@ -166,8 +166,18 @@ def _calendar_intervals(sched: ScheduleConfig) -> list[dict[str, int]]:
 	raise ScheduleError(f"unknown interval {sched.interval!r}")
 
 
-def render_plist(label: str, program_args: list[str], sched: ScheduleConfig) -> str:
-	"""Render a launchd plist string for the given label, args, and schedule."""
+def render_plist(
+	label: str,
+	program_args: list[str],
+	sched: ScheduleConfig,
+	path_env: str | None = None,
+) -> str:
+	"""Render a launchd plist string for the given label, args, and schedule.
+
+	A launchd job inherits a bare PATH (``/usr/bin:/bin:/usr/sbin:/sbin``), so
+	when *path_env* is given it is embedded as ``EnvironmentVariables/PATH`` —
+	without it the run cannot reach the ``claude`` CLI for triage.
+	"""
 	intervals = _calendar_intervals(sched)
 	payload: dict[str, object] = {
 		"Label": label,
@@ -175,6 +185,8 @@ def render_plist(label: str, program_args: list[str], sched: ScheduleConfig) -> 
 		"RunAtLoad": False,
 		"StartCalendarInterval": intervals[0] if len(intervals) == 1 else intervals,
 	}
+	if path_env:
+		payload["EnvironmentVariables"] = {"PATH": path_env}
 	return plistlib.dumps(payload, sort_keys=True).decode("utf-8")
 
 
@@ -231,15 +243,22 @@ def _on_calendar(sched: ScheduleConfig, tz: str) -> str:
 	raise ScheduleError(f"unknown interval {sched.interval!r}")
 
 
-def render_service(exec_path: str, args: list[str]) -> str:
-	"""Render a systemd .service unit for android-watcher."""
+def render_service(exec_path: str, args: list[str], path_env: str | None = None) -> str:
+	"""Render a systemd .service unit for android-watcher.
+
+	systemd user services start from a minimal PATH, so when *path_env* is given
+	it is embedded as ``Environment=PATH=`` — without it the run cannot reach the
+	``claude`` CLI for triage.
+	"""
 	exec_start = " ".join([exec_path, *args])
+	env_line = f"Environment=PATH={path_env}\n" if path_env else ""
 	return (
 		"[Unit]\n"
 		"Description=android-watcher scheduled run\n"
 		"\n"
 		"[Service]\n"
 		"Type=oneshot\n"
+		f"{env_line}"
 		f"ExecStart={exec_start}\n"
 	)
 
@@ -281,10 +300,18 @@ def _cron_line(sched: ScheduleConfig) -> str:
 	return _cron_lines(sched)[0]
 
 
-def render_crontab(line_command: str, sched: ScheduleConfig, tz: str) -> str:
-	"""Render a marked crontab block for android-watcher (one line per scheduled time)."""
+def render_crontab(
+	line_command: str, sched: ScheduleConfig, tz: str, path_env: str | None = None
+) -> str:
+	"""Render a marked crontab block for android-watcher (one line per scheduled time).
+
+	cron runs with a minimal PATH, so when *path_env* is given a ``PATH=``
+	assignment is emitted ahead of the schedule lines — without it the run cannot
+	reach the ``claude`` CLI for triage.
+	"""
 	body = "\n".join(f"{spec} {line_command}" for spec in _cron_lines(sched))
-	return f"{CRON_BEGIN}\nCRON_TZ={tz}\n{body}\n{CRON_END}\n"
+	path_line = f"PATH={path_env}\n" if path_env else ""
+	return f"{CRON_BEGIN}\nCRON_TZ={tz}\n{path_line}{body}\n{CRON_END}\n"
 
 
 # ---------------------------------------------------------------------------
@@ -317,6 +344,17 @@ def _local_tz() -> str:
 def _program_args() -> list[str]:
 	exe = shutil.which("android-watcher") or sys.argv[0]
 	return [exe, "run"]
+
+
+def _env_path() -> str:
+	"""Snapshot the install-time PATH to embed in the scheduled unit.
+
+	Native schedulers (launchd, systemd user, cron) run with a minimal PATH that
+	omits per-user bin dirs like ``~/.local/bin``, so the ``claude`` CLI would be
+	unreachable. Capturing the PATH from the shell that ran the install preserves
+	parity with the environment where ``claude`` was found.
+	"""
+	return os.environ.get("PATH", "")
 
 
 def _launchd_plist_path() -> str:
@@ -357,7 +395,7 @@ def _run(argv: list[str], *, input: str | None = None) -> subprocess.CompletedPr
 def _install_macos(config: Config) -> None:
 	path = Path(_launchd_plist_path())
 	path.parent.mkdir(parents=True, exist_ok=True)
-	path.write_text(render_plist(LAUNCHD_LABEL, _program_args(), config.schedule))
+	path.write_text(render_plist(LAUNCHD_LABEL, _program_args(), config.schedule, _env_path()))
 	_run(["launchctl", "unload", str(path)])
 	_run(["launchctl", "load", "-w", str(path)])
 	_warn(
@@ -370,7 +408,7 @@ def _install_systemd(config: Config) -> None:
 	d = Path(_systemd_dir())
 	d.mkdir(parents=True, exist_ok=True)
 	exe, *run_args = _program_args()
-	(d / f"{SYSTEMD_UNIT_NAME}.service").write_text(render_service(exe, run_args))
+	(d / f"{SYSTEMD_UNIT_NAME}.service").write_text(render_service(exe, run_args, _env_path()))
 	(d / f"{SYSTEMD_UNIT_NAME}.timer").write_text(render_timer(config.schedule, _local_tz()))
 	_run(["systemctl", "--user", "daemon-reload"])
 	_run(["systemctl", "--user", "enable", "--now", f"{SYSTEMD_UNIT_NAME}.timer"])
@@ -400,7 +438,7 @@ def _strip_cron_block(text: str) -> str:
 
 def _install_crontab(config: Config) -> None:
 	existing = _run(["crontab", "-l"]).stdout
-	block = render_crontab(" ".join(_program_args()), config.schedule, _local_tz())
+	block = render_crontab(" ".join(_program_args()), config.schedule, _local_tz(), _env_path())
 	cleaned = _strip_cron_block(existing)
 	new = (cleaned.rstrip("\n") + "\n" if cleaned.strip() else "") + block
 	_run(["crontab", "-"], input=new)
