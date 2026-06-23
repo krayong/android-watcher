@@ -31,6 +31,38 @@ def test_load_minimal_config_defaults(tmp_path):
 	assert cfg.enabled_source_ids == set()
 
 
+def test_desktop_channel_defaults_disabled(tmp_path):
+	cfg = load_config(_write(tmp_path, ""))
+	assert cfg.desktop.enabled is False
+	assert cfg.desktop.sound == "Glass"
+
+
+def test_desktop_channel_loads_enabled(tmp_path):
+	text = '[channels.desktop]\nenabled = true\nsound = "Ping"\n'
+	cfg = load_config(_write(tmp_path, text))
+	assert cfg.desktop.enabled is True
+	assert cfg.desktop.sound == "Ping"
+
+
+def test_digests_dir_under_data_path(monkeypatch, tmp_path):
+	from android_watcher.config import digests_dir
+
+	monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
+	assert digests_dir().startswith(data_path())
+	assert digests_dir().rstrip("/").endswith("digests")
+
+
+def test_desktop_mechanism_available_reflects_binary(monkeypatch):
+	import android_watcher.config as cfg_mod
+
+	monkeypatch.setattr(cfg_mod.sys, "platform", "darwin")
+	monkeypatch.setattr(cfg_mod.shutil, "which", lambda b: "/usr/local/bin/terminal-notifier")
+	assert cfg_mod.desktop_mechanism_available() is True
+
+	monkeypatch.setattr(cfg_mod.shutil, "which", lambda b: None)
+	assert cfg_mod.desktop_mechanism_available() is False
+
+
 def test_email_from_to_keys_map_to_sender_recipient(tmp_path):
 	text = """
 [channels.email]

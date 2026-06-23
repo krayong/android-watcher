@@ -97,6 +97,8 @@ def _enabled_channels(config: Config) -> set[str]:
 		channels.add("slack")
 	if config.telegram.enabled:
 		channels.add("telegram")
+	if config.desktop.enabled:
+		channels.add("desktop")
 	return channels
 
 

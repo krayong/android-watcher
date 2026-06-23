@@ -45,12 +45,56 @@ def _blank_config() -> Config:
 	)
 
 
+def _desktop_index(listing: OptionList) -> int:
+	return next(
+		i for i in range(listing.option_count) if listing.get_option_at_index(i).id == "desktop"
+	)
+
+
 @pytest.mark.asyncio
 async def test_app_boots_on_main_menu_when_reconfiguring():
 	app = AndroidWatcher(config=_blank_config(), first_run=False)
 	async with app.run_test() as pilot:
 		await pilot.pause()
 		assert isinstance(app.screen, MainMenuScreen)
+
+
+@pytest.mark.asyncio
+async def test_desktop_toggle_refused_when_mechanism_unavailable(monkeypatch):
+	import android_watcher.tui.screens as screens
+
+	monkeypatch.setattr(screens, "desktop_mechanism_available", lambda: False)
+	config = _blank_config()
+	app = AndroidWatcher(config=config, first_run=False)
+	async with app.run_test() as pilot:
+		await pilot.pause()
+		screen = ChannelsScreen(config)
+		app.push_screen(screen)
+		await pilot.pause()
+		listing = screen.query_one("#ch-list", OptionList)
+		listing.highlighted = _desktop_index(listing)
+		screen.action_toggle()
+		await pilot.pause()
+		assert config.desktop.enabled is False
+
+
+@pytest.mark.asyncio
+async def test_desktop_toggle_enables_when_mechanism_available(monkeypatch):
+	import android_watcher.tui.screens as screens
+
+	monkeypatch.setattr(screens, "desktop_mechanism_available", lambda: True)
+	config = _blank_config()
+	app = AndroidWatcher(config=config, first_run=False)
+	async with app.run_test() as pilot:
+		await pilot.pause()
+		screen = ChannelsScreen(config)
+		app.push_screen(screen)
+		await pilot.pause()
+		listing = screen.query_one("#ch-list", OptionList)
+		listing.highlighted = _desktop_index(listing)
+		screen.action_toggle()
+		await pilot.pause()
+		assert config.desktop.enabled is True
 
 
 @pytest.mark.asyncio

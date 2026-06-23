@@ -10,6 +10,7 @@ import pytest
 from android_watcher.config import (
 	AIConfig,
 	Config,
+	DesktopChannel,
 	DigestConfig,
 	EmailChannel,
 	ScheduleConfig,
@@ -48,6 +49,7 @@ def _make_full_config() -> Config:
 		),
 		slack=SlackChannel(enabled=True, bot_token="${SLACK_BOT}", channel="#dev"),
 		telegram=TelegramChannel(enabled=True, bot_token="${TG_TOKEN}", chat_id="-100123"),
+		desktop=DesktopChannel(enabled=True, sound="Ping"),
 		custom_sources=[
 			Source(
 				id="custom-1",
@@ -99,6 +101,8 @@ def test_roundtrip_preserves_fields(tmp_path: Path) -> None:
 	assert loaded.slack.channel == "#dev"
 	assert loaded.telegram.bot_token == "${TG_TOKEN}"
 	assert loaded.telegram.chat_id == "-100123"
+	assert loaded.desktop.enabled is True
+	assert loaded.desktop.sound == "Ping"
 	# sender/recipient mapping
 	assert loaded.email.sender == "from@example.com"
 	assert loaded.email.recipient == "to@example.com"
@@ -315,6 +319,48 @@ def test_validate_ok() -> None:
 	)
 	errors = validate_config(cfg)
 	assert errors == []
+
+
+def _desktop_only_config() -> Config:
+	return Config(
+		schedule=ScheduleConfig(interval="daily", at="09:00"),
+		ai=AIConfig(),
+		digest=DigestConfig(),
+		sort={},
+		email=EmailChannel(),
+		slack=SlackChannel(),
+		telegram=TelegramChannel(),
+		desktop=DesktopChannel(enabled=True),
+		custom_sources=[],
+		enabled_source_ids=set(),
+	)
+
+
+def test_validate_only_desktop_enabled_is_a_channel(monkeypatch) -> None:
+	"""Enabling only the desktop channel satisfies the 'at least one channel' rule."""
+	import android_watcher.tui.configio as cio
+
+	monkeypatch.setattr(cio, "desktop_mechanism_available", lambda: True)
+	errors = validate_config(_desktop_only_config())
+	assert errors == []
+
+
+def test_validate_desktop_enabled_without_mechanism_is_error(monkeypatch) -> None:
+	"""Enabling desktop with no notifier binary present is a validation error."""
+	import android_watcher.tui.configio as cio
+
+	monkeypatch.setattr(cio, "desktop_mechanism_available", lambda: False)
+	errors = validate_config(_desktop_only_config())
+	assert any("desktop" in e.lower() for e in errors)
+
+
+def test_config_to_toml_emits_desktop_section() -> None:
+	cfg = _desktop_only_config()
+	cfg.desktop.sound = "Submarine"
+	toml_text = config_to_toml(cfg)
+	assert "[channels.desktop]" in toml_text
+	assert "enabled = true" in toml_text
+	assert 'sound = "Submarine"' in toml_text
 
 
 def test_load_or_default_blank(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

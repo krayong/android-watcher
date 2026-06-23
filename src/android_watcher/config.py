@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import os
 import re
+import shutil
+import sys
 import tomllib
 from dataclasses import dataclass, field
 from typing import Any, Literal
@@ -16,6 +18,7 @@ __all__ = [
 	"AIConfig",
 	"Config",
 	"ConfigError",
+	"DesktopChannel",
 	"DigestConfig",
 	"EmailChannel",
 	"ScheduleConfig",
@@ -24,6 +27,8 @@ __all__ = [
 	"config_path",
 	"data_path",
 	"db_path",
+	"desktop_mechanism_available",
+	"digests_dir",
 	"load_config",
 	"log_path",
 ]
@@ -81,6 +86,12 @@ class TelegramChannel:
 
 
 @dataclass
+class DesktopChannel:
+	enabled: bool = False
+	sound: str = "Glass"  # macOS notification sound name
+
+
+@dataclass
 class Config:
 	schedule: ScheduleConfig
 	ai: AIConfig
@@ -90,6 +101,9 @@ class Config:
 	slack: SlackChannel
 	telegram: TelegramChannel
 	custom_sources: list[Source]
+	# Defaulted (disabled) so existing Config(...) call sites need no change; a new
+	# optional local channel that is off until the user opts in.
+	desktop: DesktopChannel = field(default_factory=DesktopChannel)
 	enabled_source_ids: set[str] = field(default_factory=set)
 
 
@@ -103,6 +117,30 @@ def data_path() -> str:
 
 def db_path() -> str:
 	return os.path.join(data_path(), "state.db")
+
+
+def digests_dir() -> str:
+	"""Directory where the desktop channel writes click-to-open HTML digests."""
+	return os.path.join(data_path(), "digests")
+
+
+def _desktop_binary() -> str | None:
+	"""The required desktop-notification binary for this platform, or None.
+
+	macOS uses terminal-notifier (the only mechanism that opens the digest on
+	click); Linux uses notify-send. Other platforms have no supported mechanism.
+	"""
+	if sys.platform == "darwin":
+		return "terminal-notifier"
+	if sys.platform.startswith("linux"):
+		return "notify-send"
+	return None
+
+
+def desktop_mechanism_available() -> bool:
+	"""True if this platform's required desktop-notification binary is installed."""
+	binary = _desktop_binary()
+	return bool(binary and shutil.which(binary))
 
 
 def log_path() -> str:
@@ -160,6 +198,7 @@ def load_config(path: str | None = None, *, expand: bool = True) -> Config:
 	email = _load_email(channels.get("email", {}), expand=expand)
 	slack = _load_slack(channels.get("slack", {}), expand=expand)
 	telegram = _load_telegram(channels.get("telegram", {}), expand=expand)
+	desktop = _load_desktop(channels.get("desktop", {}))
 	custom_sources = [_load_source(e) for e in raw.get("custom_source", [])]
 	enabled = set(raw.get("enabled_sources", []))
 
@@ -174,6 +213,7 @@ def load_config(path: str | None = None, *, expand: bool = True) -> Config:
 		email=email,
 		slack=slack,
 		telegram=telegram,
+		desktop=desktop,
 		custom_sources=custom_sources,
 		enabled_source_ids=enabled,
 	)
@@ -244,6 +284,14 @@ def _load_telegram(d: dict[str, Any], *, expand: bool) -> TelegramChannel:
 		enabled=bool(d.get("enabled", False)),
 		bot_token=_interpolate(d.get("bot_token", ""), expand=expand),  # secret
 		chat_id=d.get("chat_id", ""),
+	)
+
+
+def _load_desktop(d: dict[str, Any]) -> DesktopChannel:
+	# No secret-bearing fields, so no ${ENV} interpolation needed.
+	return DesktopChannel(
+		enabled=bool(d.get("enabled", False)),
+		sound=d.get("sound", "Glass"),
 	)
 
 
