@@ -98,11 +98,11 @@ jobs:
       - name: Set up Homebrew
         uses: Homebrew/actions/setup-homebrew@master
 
-      # Best-effort and non-blocking: `brew update-python-resources` can fail to
-      # resolve a same-day PyPI upload (its reproducibility cutoff predates the
-      # publish) and requires a tap on newer Homebrew. Never let that fail the
-      # release; regenerate the resource blocks out-of-band once PyPI indexing
-      # settles, then commit the refreshed formula.
+      # Best-effort and non-blocking. `brew update-python-resources` refuses a loose
+      # formula file, so it is staged inside a throwaway local tap below. It can
+      # still fail to resolve a same-day PyPI upload, whose publish postdates
+      # Homebrew's reproducibility cutoff. Never let that fail the release;
+      # regenerate the resource blocks out-of-band when it does, then commit.
       - name: Update Homebrew formula
         continue-on-error: true
         run: |
@@ -133,7 +133,16 @@ jobs:
           open(p, "w").write(s)
           PY
           # Regenerate every pinned dependency `resource` block against this release.
-          brew update-python-resources Formula/android-watcher.rb
+          # update-python-resources only operates on a formula inside a tap, so stage
+          # it in a throwaway local tap, regenerate there, then copy the result back.
+          TAP_DIR="$(brew --repository)/Library/Taps/local/homebrew-awtmp"
+          rm -rf "$TAP_DIR" && mkdir -p "$TAP_DIR/Formula"
+          git -C "$TAP_DIR" init -q
+          git -C "$TAP_DIR" -c user.email=ci@local -c user.name=ci commit -q --allow-empty -m init
+          cp Formula/android-watcher.rb "$TAP_DIR/Formula/android-watcher.rb"
+          brew update-python-resources local/awtmp/android-watcher
+          cp "$TAP_DIR/Formula/android-watcher.rb" Formula/android-watcher.rb
+          rm -rf "$TAP_DIR"
           git add Formula/android-watcher.rb
           git commit -m "chore: update homebrew formula for v${VERSION}"
           git push origin HEAD:main
