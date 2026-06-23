@@ -1,1 +1,1 @@
-from . import email, slack, telegram  # noqa: F401
+from . import desktop, email, slack, telegram  # noqa: F401

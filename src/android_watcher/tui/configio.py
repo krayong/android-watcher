@@ -15,12 +15,14 @@ from android_watcher.config import (
 	AIConfig,
 	Config,
 	ConfigError,
+	DesktopChannel,
 	DigestConfig,
 	EmailChannel,
 	ScheduleConfig,
 	SlackChannel,
 	TelegramChannel,
 	config_path,
+	desktop_mechanism_available,
 	load_config,
 )
 from android_watcher.models import Source
@@ -136,6 +138,12 @@ def config_to_toml(config: Config) -> str:
 	lines.append(f"chat_id = {_toml_str(tg.chat_id)}")
 	lines.append("")
 
+	ds = config.desktop
+	lines.append("[channels.desktop]")
+	lines.append(f"enabled = {'true' if ds.enabled else 'false'}")
+	lines.append(f"sound = {_toml_str(ds.sound)}")
+	lines.append("")
+
 	for s in config.custom_sources:
 		lines.append(_source_table("custom_source", s))
 
@@ -173,8 +181,16 @@ def validate_config(config: Config) -> list[str]:
 		errors.append(str(exc))
 	finally:
 		os.unlink(tmp)
-	if not (config.email.enabled or config.slack.enabled or config.telegram.enabled):
-		errors.append("enable at least one delivery channel (Slack or Telegram) to receive digests")
+	if not (
+		config.email.enabled
+		or config.slack.enabled
+		or config.telegram.enabled
+		or config.desktop.enabled
+	):
+		errors.append(
+			"enable at least one delivery channel (Email, Slack, Telegram, or Desktop) "
+			"to receive digests"
+		)
 	sl = config.slack
 	if sl.enabled and not (sl.bot_token and sl.channel):
 		errors.append("slack channel is enabled but bot_token + channel are required")
@@ -183,6 +199,11 @@ def validate_config(config: Config) -> list[str]:
 		errors.append("telegram channel is enabled but bot_token is empty")
 	if tg.enabled and not tg.chat_id:
 		errors.append("telegram channel is enabled but chat_id is empty")
+	if config.desktop.enabled and not desktop_mechanism_available():
+		errors.append(
+			"desktop channel is enabled but no notifier is available "
+			"(install terminal-notifier on macOS or notify-send on Linux)"
+		)
 	if _in_git_worktree(config_path()):
 		errors.append(
 			f"warning: config path {config_path()} is inside a git work tree; "
@@ -209,6 +230,7 @@ def load_or_default() -> tuple[Config, bool]:
 		email=EmailChannel(),
 		slack=SlackChannel(),
 		telegram=TelegramChannel(),
+		desktop=DesktopChannel(),
 		custom_sources=[],
 		enabled_source_ids=set(),
 	)

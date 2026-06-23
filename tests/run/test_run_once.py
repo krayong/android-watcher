@@ -18,6 +18,7 @@ import android_watcher.run as run_mod
 from android_watcher.config import (
 	AIConfig,
 	Config,
+	DesktopChannel,
 	DigestConfig,
 	EmailChannel,
 	ScheduleConfig,
@@ -129,12 +130,15 @@ class FakeNotifier:
 		return {mid for mid in member_ids if mid is not None}
 
 
-def install_notifiers(monkeypatch, *, email_fail=False, slack_fail=False, telegram_fail=False):
+def install_notifiers(
+	monkeypatch, *, email_fail=False, slack_fail=False, telegram_fail=False, desktop_fail=False
+):
 	FakeNotifier.sends = []
 	impls = {
 		"email": lambda: FakeNotifier("email", fail=email_fail),
 		"slack": lambda: FakeNotifier("slack", fail=slack_fail),
 		"telegram": lambda: FakeNotifier("telegram", fail=telegram_fail),
+		"desktop": lambda: FakeNotifier("desktop", fail=desktop_fail),
 	}
 	monkeypatch.setattr(NOTIFIERS, "get", lambda name: impls[name])
 
@@ -155,7 +159,14 @@ def install_triager(monkeypatch, result_factory):
 
 
 def make_config(
-	*, email=True, slack=True, telegram=False, empty="send", ai_mode="off", interval="daily"
+	*,
+	email=True,
+	slack=True,
+	telegram=False,
+	desktop=False,
+	empty="send",
+	ai_mode="off",
+	interval="daily",
 ):  # noqa: E501
 	return Config(
 		schedule=ScheduleConfig(interval=interval),
@@ -165,6 +176,7 @@ def make_config(
 		email=EmailChannel(enabled=email),
 		slack=SlackChannel(enabled=slack),
 		telegram=TelegramChannel(enabled=telegram),
+		desktop=DesktopChannel(enabled=desktop),
 		custom_sources=[],
 		enabled_source_ids=set(),
 	)
@@ -524,6 +536,18 @@ def test_telegram_channel_included_when_enabled(patched, monkeypatch):
 
 	channels_sent = {name for name, _ in FakeNotifier.sends}
 	assert "telegram" in channels_sent
+
+
+def test_desktop_channel_included_when_enabled(patched, monkeypatch):
+	"""_enabled_channels includes 'desktop' when the desktop channel is enabled."""
+	store, _ = patched
+	install_notifiers(monkeypatch)
+	store.digest_changes = [sub_change(1)]
+
+	run_mod.run_once(make_config(email=False, slack=False, desktop=True))
+
+	channels_sent = {name for name, _ in FakeNotifier.sends}
+	assert "desktop" in channels_sent
 
 
 def test_triage_batched_splits_calls():

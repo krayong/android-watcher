@@ -10,6 +10,7 @@ from __future__ import annotations
 from android_watcher.config import (
 	AIConfig,
 	Config,
+	DesktopChannel,
 	DigestConfig,
 	EmailChannel,
 	ScheduleConfig,
@@ -23,7 +24,7 @@ from android_watcher.models import Check, Source
 # ---------------------------------------------------------------------------
 
 
-def make_config(*, ai_mode="off", custom_sources=None, enabled_ids=None):
+def make_config(*, ai_mode="off", custom_sources=None, enabled_ids=None, desktop=False):
 	return Config(
 		schedule=ScheduleConfig(),
 		ai=AIConfig(mode=ai_mode),
@@ -32,6 +33,7 @@ def make_config(*, ai_mode="off", custom_sources=None, enabled_ids=None):
 		email=EmailChannel(),
 		slack=SlackChannel(),
 		telegram=TelegramChannel(),
+		desktop=DesktopChannel(enabled=desktop),
 		custom_sources=custom_sources or [],
 		enabled_source_ids=enabled_ids or set(),
 	)
@@ -84,6 +86,56 @@ def test_ai_off_mode(monkeypatch):
 	assert check.name == "ai-backend"
 	assert check.ok is True
 	assert "disabled" in check.detail.lower()
+
+
+# ---------------------------------------------------------------------------
+# Desktop channel checks
+# ---------------------------------------------------------------------------
+
+
+def test_desktop_mechanism_present(monkeypatch):
+	import android_watcher.doctor as doc
+
+	monkeypatch.setattr("android_watcher.config._desktop_binary", lambda: "terminal-notifier")
+	monkeypatch.setattr("android_watcher.config.desktop_mechanism_available", lambda: True)
+	check = doc._check_desktop(make_config(desktop=True))
+	assert check.name == "desktop"
+	assert check.ok is True
+	assert "terminal-notifier" in check.detail
+
+
+def test_desktop_mechanism_missing(monkeypatch):
+	import android_watcher.doctor as doc
+
+	monkeypatch.setattr("android_watcher.config._desktop_binary", lambda: "notify-send")
+	monkeypatch.setattr("android_watcher.config.desktop_mechanism_available", lambda: False)
+	check = doc._check_desktop(make_config(desktop=True))
+	assert check.name == "desktop"
+	assert check.ok is False
+	assert "notify-send" in check.detail
+
+
+def test_desktop_check_absent_when_disabled(monkeypatch):
+	import android_watcher.doctor as doc
+
+	monkeypatch.setattr(doc, "_check_prefixes", lambda config: [])
+	monkeypatch.setattr(doc, "_check_seed", lambda: Check("seed", True, ""))
+	monkeypatch.setattr(doc, "_check_schedule", lambda: Check("schedule", True, ""))
+	monkeypatch.setattr("shutil.which", lambda name: None)
+	names = {c.name for c in doc.run_doctor(make_config(desktop=False))}
+	assert "desktop" not in names
+
+
+def test_desktop_check_included_when_enabled(monkeypatch):
+	import android_watcher.doctor as doc
+
+	monkeypatch.setattr(doc, "_check_prefixes", lambda config: [])
+	monkeypatch.setattr(doc, "_check_seed", lambda: Check("seed", True, ""))
+	monkeypatch.setattr(doc, "_check_schedule", lambda: Check("schedule", True, ""))
+	monkeypatch.setattr("shutil.which", lambda name: None)
+	monkeypatch.setattr("android_watcher.config.desktop_mechanism_available", lambda: True)
+	names = {c.name for c in doc.run_doctor(make_config(desktop=True))}
+	assert "desktop" in names
 
 
 # ---------------------------------------------------------------------------

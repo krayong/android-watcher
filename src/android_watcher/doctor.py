@@ -34,6 +34,25 @@ def _check_ai(config: Config) -> Check:
 	return Check("ai-backend", False, "claude not found on PATH")
 
 
+def _check_desktop(config: Config) -> Check:
+	"""Verify the platform's required desktop-notification binary is installed."""
+	from android_watcher.config import (  # noqa: PLC0415 - localized to keep imports lean
+		_desktop_binary,
+		desktop_mechanism_available,
+	)
+
+	binary = _desktop_binary()
+	if binary is None:
+		return Check("desktop", False, "no supported desktop notifier for this platform")
+	if desktop_mechanism_available():
+		return Check("desktop", True, f"{binary} found")
+	return Check(
+		"desktop",
+		False,
+		f"{binary} not found on PATH; install it to enable desktop notifications",
+	)
+
+
 def _check_seed() -> Check:
 	"""Report the imported baseline seed date and snapshot count, if any."""
 	store = Store(db_path())
@@ -121,5 +140,7 @@ def run_doctor(config: Config) -> list[Check]:
 	checks.extend(_check_prefixes(config))
 	checks.append(_check_seed())
 	checks.append(_check_ai(config))
+	if config.desktop.enabled:
+		checks.append(_check_desktop(config))
 	checks.append(_check_schedule())
 	return checks

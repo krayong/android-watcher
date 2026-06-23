@@ -12,7 +12,7 @@ from textual.widgets import Input, OptionList, Static
 from textual.widgets.option_list import Option
 
 from android_watcher.catalog import load_catalog
-from android_watcher.config import Config
+from android_watcher.config import Config, desktop_mechanism_available
 from android_watcher.models import Source
 
 NONE_SENTINEL = "__none__"
@@ -432,7 +432,9 @@ class MainMenuScreen(_Nav):
 	def _summaries(self) -> list[tuple[str, str, str]]:
 		c = self._config
 		channels = [
-			name for name, ch in (("slack", c.slack), ("telegram", c.telegram)) if ch.enabled
+			name
+			for name, ch in (("slack", c.slack), ("telegram", c.telegram), ("desktop", c.desktop))
+			if ch.enabled
 		]
 		sched = c.schedule
 		when = sched.cron if sched.interval == "cron" else f"{sched.interval} {sched.at}".strip()
@@ -746,7 +748,11 @@ class ChannelsScreen(_Nav):
 
 	def _channels(self):
 		c = self._config
-		return (("slack", "Slack", c.slack), ("telegram", "Telegram", c.telegram))
+		return (
+			("slack", "Slack", c.slack),
+			("telegram", "Telegram", c.telegram),
+			("desktop", "Desktop", c.desktop),
+		)
 
 	def compose(self) -> ComposeResult:
 		yield from _heading("Channels", "Where digests are delivered")
@@ -786,6 +792,16 @@ class ChannelsScreen(_Nav):
 		cid = listing.get_option_at_index(listing.highlighted).id
 		for oid, _name, ch in self._channels():
 			if oid == cid:
+				# Desktop click-to-open needs a notifier binary; refuse to enable it
+				# when none is installed (terminal-notifier on macOS, notify-send on Linux).
+				if oid == "desktop" and not ch.enabled and not desktop_mechanism_available():
+					self.app.bell()
+					self.app.notify(
+						"Install terminal-notifier (macOS) or notify-send (Linux) first.",
+						title="Desktop notifications unavailable",
+						severity="error",
+					)
+					return
 				ch.enabled = not ch.enabled
 				self._populate()
 				return
@@ -900,7 +916,11 @@ class ReviewScreen(_Nav):
 		else:
 			when = f"daily at {s.at}"
 		ai = "off" if c.ai.mode == "off" else f"claude ({c.ai.model})"
-		channels = [n for n, ch in (("slack", c.slack), ("telegram", c.telegram)) if ch.enabled]
+		channels = [
+			n
+			for n, ch in (("slack", c.slack), ("telegram", c.telegram), ("desktop", c.desktop))
+			if ch.enabled
+		]
 		channels_str = ", ".join(channels) if channels else "none — pick one to finish!"
 		return [
 			f"Sources    {watched_count(c)} selected",
