@@ -34,6 +34,11 @@ jobs:
         with:
           ref: main
           fetch-depth: 0   # full history so we can push back and tag
+          # Push to main as the repo owner (a ruleset bypass actor) rather than the
+          # ambient GITHUB_TOKEN / github-actions[bot], which the main ruleset blocks.
+          # On a user-owned repo the GitHub Actions integration cannot be added to the
+          # bypass list, so a fine-grained PAT (contents: write) is used instead.
+          token: ${{ secrets.RELEASE_TOKEN }}
 
       - name: Configure git as the release bot
         run: |
