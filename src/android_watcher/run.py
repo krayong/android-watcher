@@ -108,20 +108,23 @@ def _source_index(config: Config) -> dict[str, Source]:
 	return sources
 
 
-def _catch_up_due(store: Store, config: Config, force: bool) -> bool:
-	"""Whether this run should cover the current cycle.
+def _empty_digest_due(last: datetime | None, config: Config, now: datetime) -> bool:
+	"""Whether an empty "nothing notable" heartbeat should be sent now.
 
-	Due when forced, when nothing has ever run, or when the last successful run
-	is at least one schedule interval in the past. cron has no fixed delta, so
-	it is always due; the native scheduler enforces cron timing.
+	Detection always runs when the native scheduler fires; only the empty
+	heartbeat is rate-limited here. It goes out once per schedule interval and is
+	suppressed only when a prior run succeeded recently (within half the
+	interval), so two fires close together — a manual run plus the scheduled one,
+	or a wake double-fire — do not double-send it. Real changes are never gated;
+	the delivery ledger makes them idempotent. cron has no fixed interval, so it
+	always sends.
 	"""
-	last = store.last_successful_run()
-	if force or last is None:
+	if last is None:
 		return True
 	delta = INTERVAL_DELTA.get(config.schedule.interval)
-	if delta is None:  # cron => always due
+	if delta is None:  # cron => always send
 		return True
-	return datetime.now(UTC) - last >= delta
+	return now - last >= delta / 2
 
 
 async def _run_async(sources: list[Source], store: Store, fetcher: Fetcher) -> list[Change]:
@@ -227,10 +230,11 @@ def run_once(config: Config, *, force: bool = False, dry_run: bool = False) -> D
 				_deliver_into(store, recon, config, channels)
 			store.commit_digest(inflight)
 
-		# Catch-up gate: skip when the last successful run already covers this
-		# cycle and we are not forced.
-		if not _catch_up_due(store, config, force):
-			return Digest(groups=[])
+		# Detection always runs when the native scheduler fires. The last
+		# successful run is read here (before it is overwritten below) solely to
+		# rate-limit the empty heartbeat at send time.
+		now = datetime.now(UTC)
+		last = store.last_successful_run()
 
 		sources = resolve_sources(config)
 		log.info(
@@ -267,15 +271,18 @@ def run_once(config: Config, *, force: bool = False, dry_run: bool = False) -> D
 		# Digest comes from the ledger (undelivered backlog), not this-run changes.
 		digest = _build_ledger_digest(store, config, channels, result.tldr, result.unavailable)
 
-		# Empty "nothing notable" digests go out at most once per catch-up window:
-		# only here, where the gate was due and mark_successful_run (below) will
-		# advance the window so the next empty run is not due. Non-empty digests
-		# are idempotent via the delivery ledger regardless.
-		send_empty = digest.is_empty and config.digest.empty == "send"
+		# Empty "nothing notable" digests are rate-limited so two fires close
+		# together do not double-send the heartbeat (--force overrides). Non-empty
+		# digests always go out; the delivery ledger keeps them idempotent.
+		send_empty = (
+			digest.is_empty
+			and config.digest.empty == "send"
+			and (force or _empty_digest_due(last, config, now))
+		)
 		if not digest.is_empty or send_empty:
 			_deliver_into(store, digest, config, channels)
 
-		store.mark_successful_run(datetime.now(UTC))
+		store.mark_successful_run(now)
 		log.info(
 			"run finished: %d detected, %d in digest, delivered to %s",
 			len(changes),

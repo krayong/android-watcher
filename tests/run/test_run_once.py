@@ -1,6 +1,6 @@
-"""Task 10: run_once orchestration — ledger-authoritative delivery, reconcile,
-catch-up gate, write-once triage, supersede, transactional per-channel delivery,
-zero-channels short-circuit, empty-digest idempotency, and dry_run.
+"""run_once orchestration — ledger-authoritative delivery, reconcile,
+write-once triage, supersede, transactional per-channel delivery,
+zero-channels short-circuit, empty-digest rate-limiting, and dry_run.
 
 Tests exercise the guarantees: a fake Store records the ledger calls, fake
 notifiers record sends, and the digest is always seeded into the ledger (never
@@ -271,8 +271,8 @@ def test_delivery_idempotency_email_ok_slack_fail(patched, monkeypatch):
 	assert (3, "slack") not in store.deliveries
 	assert len(store.marked) == 1
 
-	# Next run (force past the catch-up gate, slack now healthy): both notifiers
-	# are called (per-channel skip is gone; idempotency is in record_delivery).
+	# Next run (slack now healthy): both notifiers are called (per-channel skip
+	# is gone; idempotency is in record_delivery).
 	# Email's record_delivery is a no-op (INSERT OR IGNORE); slack records.
 	install_notifiers(monkeypatch)  # both channels healthy now
 	store.digest_changes = [sub_change(3)]
@@ -304,28 +304,62 @@ def test_reconcile_redelivers_then_commits(patched, monkeypatch):
 	assert inflight_id in store.committed
 
 
-def test_catch_up_gate_not_due_skips(patched, monkeypatch):
+def test_run_within_interval_still_delivers_changes(patched, monkeypatch):
+	"""A scheduled fire less than one interval after the last successful run must
+	still detect and deliver real changes. The previous catch-up gate skipped
+	these runs entirely, which silently dropped roughly every other day's digest
+	on a fixed-time schedule."""
 	store, _ = patched
 	install_notifiers(monkeypatch)
 	store._last_run = datetime.now(UTC) - timedelta(minutes=5)  # within daily interval
 	store.digest_changes = [sub_change(9)]
 
-	digest = run_mod.run_once(make_config(interval="daily"))
+	run_mod.run_once(make_config(interval="daily"))
 
-	assert digest.is_empty
-	assert FakeNotifier.sends == []
-	assert store.marked == []  # not marked when skipped
+	assert FakeNotifier.sends  # real changes delivered despite a recent prior run
+	assert len(store.marked) == 1
 
 
-def test_catch_up_force_overrides_gate(patched, monkeypatch):
+def test_empty_digest_suppressed_when_last_run_recent(patched, monkeypatch):
+	"""An empty 'nothing notable' heartbeat is suppressed when the previous
+	successful run was recent (within half the interval) — e.g. a manual run
+	shortly before the scheduled fire — but the run still happens and is marked."""
+	store, _ = patched
+	install_notifiers(monkeypatch)
+	store._last_run = datetime.now(UTC) - timedelta(hours=1)  # < 12h (daily / 2)
+	store.digest_changes = []  # nothing notable
+
+	run_mod.run_once(make_config(empty="send", interval="daily"))
+
+	assert FakeNotifier.sends == []  # duplicate empty heartbeat suppressed
+	assert len(store.marked) == 1  # run still happened and advanced the window
+
+
+def test_empty_digest_sent_after_interval_with_prior_run(patched, monkeypatch):
+	"""The empty heartbeat still fires once roughly the interval has elapsed
+	since the last successful run, even though a prior run exists."""
+	store, _ = patched
+	install_notifiers(monkeypatch)
+	store._last_run = datetime.now(UTC) - timedelta(hours=25)  # > daily interval
+	store.digest_changes = []
+
+	run_mod.run_once(make_config(empty="send", interval="daily"))
+
+	assert FakeNotifier.sends  # heartbeat fired
+	assert len(store.marked) == 1
+
+
+def test_force_sends_empty_despite_recent_run(patched, monkeypatch):
+	"""--force bypasses the empty-digest recency guard: the heartbeat is sent
+	even when the previous run was moments ago."""
 	store, _ = patched
 	install_notifiers(monkeypatch)
 	store._last_run = datetime.now(UTC) - timedelta(minutes=5)
-	store.digest_changes = [sub_change(9)]
+	store.digest_changes = []
 
-	run_mod.run_once(make_config(interval="daily"), force=True)
+	run_mod.run_once(make_config(empty="send", interval="daily"), force=True)
 
-	assert FakeNotifier.sends  # force ran it anyway
+	assert FakeNotifier.sends  # forced empty send despite recency
 	assert len(store.marked) == 1
 
 
