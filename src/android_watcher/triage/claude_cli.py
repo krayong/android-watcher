@@ -14,8 +14,14 @@ from android_watcher.triage.base import TRIAGERS, TriageResult
 logger = logging.getLogger(__name__)
 
 MAX_CONTENT_CHARS: int = 4000
-MAX_TRIAGE_BATCH: int = 25
-SUBPROCESS_TIMEOUT: float = 120.0
+# Batch size and per-call timeout are sized for a large backlog drain, not just a
+# steady-state run: a batch of N changes carries up to N*MAX_CONTENT_CHARS of page
+# content, and `claude -p` must read it and emit JSON for every item within the
+# timeout. A timed-out batch trips the run's AI-unavailable banner and falls back
+# to send-all, so keep the batch small and the timeout generous to avoid that on a
+# one-shot drain of hundreds of changes.
+MAX_TRIAGE_BATCH: int = 12
+SUBPROCESS_TIMEOUT: float = 300.0
 
 _INSTRUCTIONS_TEMPLATE = (
 	"You are triaging changes detected on official Android documentation and blog\n"

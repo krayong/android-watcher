@@ -263,6 +263,24 @@ class Store:
 		change.id = int(row["id"])
 		return change.id
 
+	def changes_needing_triage(self) -> list[Change]:
+		"""Every ledger row still awaiting a verdict (verdict IS NULL, not superseded).
+
+		The triage worklist is sourced from the ledger, not just this run's fresh
+		detections, so a change recorded during a run that could not triage (the
+		triager returned unavailable, leaving the verdict NULL) is picked up and
+		triaged on a later run. Without this it would never be re-detected — its
+		content hash / feed seen-set already matches — and so would strand forever.
+		"""
+		rows = self._conn.execute(
+			"""
+            SELECT * FROM changes
+            WHERE verdict IS NULL AND superseded = 0
+            ORDER BY detected_at DESC, id DESC
+            """
+		).fetchall()
+		return [self._row_to_change(r) for r in rows]
+
 	def changes_for_digest(self, channels: set[str]) -> list[Change]:
 		"""Substantive changes not yet delivered to EVERY channel in `channels`.
 

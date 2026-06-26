@@ -176,7 +176,8 @@ def render_plist(
 
 	A launchd job inherits a bare PATH (``/usr/bin:/bin:/usr/sbin:/sbin``), so
 	when *path_env* is given it is embedded as ``EnvironmentVariables/PATH`` —
-	without it the run cannot reach the ``claude`` CLI for triage.
+	without it the run cannot reach the ``claude`` CLI for triage. Any
+	``sched.env`` entries are embedded in the same ``EnvironmentVariables`` dict.
 	"""
 	intervals = _calendar_intervals(sched)
 	payload: dict[str, object] = {
@@ -185,8 +186,11 @@ def render_plist(
 		"RunAtLoad": False,
 		"StartCalendarInterval": intervals[0] if len(intervals) == 1 else intervals,
 	}
+	env_vars = dict(sched.env)
 	if path_env:
-		payload["EnvironmentVariables"] = {"PATH": path_env}
+		env_vars["PATH"] = path_env
+	if env_vars:
+		payload["EnvironmentVariables"] = env_vars
 	return plistlib.dumps(payload, sort_keys=True).decode("utf-8")
 
 
@@ -243,15 +247,22 @@ def _on_calendar(sched: ScheduleConfig, tz: str) -> str:
 	raise ScheduleError(f"unknown interval {sched.interval!r}")
 
 
-def render_service(exec_path: str, args: list[str], path_env: str | None = None) -> str:
+def render_service(
+	exec_path: str,
+	args: list[str],
+	path_env: str | None = None,
+	env: dict[str, str] | None = None,
+) -> str:
 	"""Render a systemd .service unit for android-watcher.
 
 	systemd user services start from a minimal PATH, so when *path_env* is given
 	it is embedded as ``Environment=PATH=`` — without it the run cannot reach the
-	``claude`` CLI for triage.
+	``claude`` CLI for triage. Each *env* entry is emitted as its own
+	``Environment=KEY=value`` line.
 	"""
 	exec_start = " ".join([exec_path, *args])
-	env_line = f"Environment=PATH={path_env}\n" if path_env else ""
+	env_lines = "".join(f"Environment={k}={v}\n" for k, v in (env or {}).items())
+	env_line = (f"Environment=PATH={path_env}\n" if path_env else "") + env_lines
 	return (
 		"[Unit]\n"
 		"Description=android-watcher scheduled run\n"
@@ -307,11 +318,13 @@ def render_crontab(
 
 	cron runs with a minimal PATH, so when *path_env* is given a ``PATH=``
 	assignment is emitted ahead of the schedule lines — without it the run cannot
-	reach the ``claude`` CLI for triage.
+	reach the ``claude`` CLI for triage. Each ``sched.env`` entry is emitted as
+	its own ``KEY=value`` assignment, also ahead of the schedule lines.
 	"""
 	body = "\n".join(f"{spec} {line_command}" for spec in _cron_lines(sched))
 	path_line = f"PATH={path_env}\n" if path_env else ""
-	return f"{CRON_BEGIN}\nCRON_TZ={tz}\n{path_line}{body}\n{CRON_END}\n"
+	env_lines = "".join(f"{k}={v}\n" for k, v in sched.env.items())
+	return f"{CRON_BEGIN}\nCRON_TZ={tz}\n{path_line}{env_lines}{body}\n{CRON_END}\n"
 
 
 # ---------------------------------------------------------------------------
@@ -408,7 +421,9 @@ def _install_systemd(config: Config) -> None:
 	d = Path(_systemd_dir())
 	d.mkdir(parents=True, exist_ok=True)
 	exe, *run_args = _program_args()
-	(d / f"{SYSTEMD_UNIT_NAME}.service").write_text(render_service(exe, run_args, _env_path()))
+	(d / f"{SYSTEMD_UNIT_NAME}.service").write_text(
+		render_service(exe, run_args, _env_path(), config.schedule.env)
+	)
 	(d / f"{SYSTEMD_UNIT_NAME}.timer").write_text(render_timer(config.schedule, _local_tz()))
 	_run(["systemctl", "--user", "daemon-reload"])
 	_run(["systemctl", "--user", "enable", "--now", f"{SYSTEMD_UNIT_NAME}.timer"])

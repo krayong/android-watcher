@@ -250,15 +250,20 @@ def run_once(config: Config, *, force: bool = False, dry_run: bool = False) -> D
 		for change in changes:
 			change.id = store.record_change(change)  # idempotent on (source,url,hash)
 
-		# Triage is WRITE-ONCE: only rows whose verdict is still NULL. Re-detected
-		# rows already carry a final verdict and must not be re-triaged.
-		untriaged = [c for c in changes if c.verdict is None]
+		# Triage is WRITE-ONCE and ledger-sourced: the worklist is every row whose
+		# verdict is still NULL, not just this run's detections. A change recorded
+		# during a run that could not triage (the triager returned unavailable,
+		# leaving the verdict NULL) is never re-detected — its content hash / feed
+		# seen-set already matches — so the ledger is the only place to find it.
+		untriaged = store.changes_needing_triage()
 		mode = config.ai.mode if config.ai.mode != "off" else "noop"
 		t_triage = time.monotonic()
 		result = _triage_batched(TRIAGERS.get(mode)(), untriaged, config.ai)
 		log.info("triage phase: %.1fs (%d triaged)", time.monotonic() - t_triage, len(untriaged))
 		for change in result.changes:
-			if change.id is not None and change.verdict is not None:
+			if change.id is None:
+				continue
+			if change.verdict is not None:
 				store.set_verdict(
 					change.id,
 					change.verdict,
@@ -267,6 +272,12 @@ def run_once(config: Config, *, force: bool = False, dry_run: bool = False) -> D
 					change.group_summary,
 					change.group_title,
 				)
+			elif result.unavailable is not None:
+				# Could not triage: fail open and SEND ALL. Mark every untriaged
+				# change substantive (no description) so the digest still goes out
+				# — with the AI-unavailable banner — instead of silently withholding
+				# the change until some later run does manage to triage it.
+				store.set_verdict(change.id, "substantive", None)
 
 		# Digest comes from the ledger (undelivered backlog), not this-run changes.
 		digest = _build_ledger_digest(store, config, channels, result.tldr, result.unavailable)

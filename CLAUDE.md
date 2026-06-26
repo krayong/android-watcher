@@ -61,7 +61,10 @@ them without understanding why they exist.
 - The content detector refuses to baseline a page whose extracted text is below a small threshold (a client-rendered
   shell), so it never silently hashes nothing forever.
 - Feed dedupe keys on a stable identity: the Atom `<id>` verbatim, else a normalized link URL. Persist the full
-  seen-set. An existing item counts as changed only when its title+summary hash moves.
+  seen-set. An existing item counts as changed only when its title+summary hash moves. A feed whose entry title is only
+  a date (the AndroidX aggregate feed titles every entry "June 24, 2026") gets a display title synthesized from the
+  summary's library/version link text; this is display-only — identity and the title+summary dedupe hash still use the
+  original feed values, so the rewrite never re-fires the seen-set.
 - The `android_sitemap` detector is host-agnostic: it parses a host's sitemap (a `<sitemapindex>` of shards, or a single
   `<urlset>`) once per run, cached on the `Fetcher` keyed by the sitemap-index URL derived from each source's host (
   `<scheme>://<host>/sitemap.xml`). Sources on the same host share one download (guarded by an `asyncio.Lock`,
@@ -97,7 +100,12 @@ them without understanding why they exist.
   `detected_at`).
 - `record_change` is idempotent on `(source_id, url, fetched_hash)`: it returns the existing row id and never resets a
   verdict.
-- `set_verdict` is write-once. Triage only touches rows with `verdict IS NULL`.
+- `set_verdict` is write-once. The triage worklist is the whole ledger — `changes_needing_triage()` returns every row
+  with `verdict IS NULL AND superseded = 0`, not just this run's detections. A change recorded during a run that could
+  not triage keeps a NULL verdict and is never re-detected (its content hash / feed seen-set already matches), so the
+  ledger is the only place to find it; a later run picks it up and resolves it. When triage cannot run at all (the
+  triager returns `unavailable`), the run fails open and marks every untriaged row `substantive` with no description, so
+  the digest still goes out (with the AI-unavailable banner) instead of silently stranding those changes.
 - When a ranked change is delivered, `supersede_older` marks older undelivered rows for the same `(source_id, url)` so a
   page that changed twice yields one digest line, not a stale one.
 - Delivery is per `(change, channel)`, recorded in `deliveries`. Send, then record the delivery transactionally. A
@@ -126,7 +134,8 @@ them without understanding why they exist.
 
 - `claude_cli` shells out to `claude -p --output-format json`, strips a markdown code fence from the result before
   parsing, and on any failure returns `TriageResult(unavailable=<reason>)` without raising. The digest still goes out,
-  with a visible "AI unavailable" banner.
+  with a visible "AI unavailable" banner, and the run marks every untriaged change `substantive` so they are all sent
+  rather than withheld (same effect as the `noop` triager — when triage cannot classify, send all).
 - Fetched page content is untrusted. Wrap it in per-run nonce-fenced blocks, length-cap it, and instruct the model to
   treat it as data, never instructions.
 - `noop` (AI off) marks every change substantive with no description and does not filter.

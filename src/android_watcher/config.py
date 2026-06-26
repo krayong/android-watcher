@@ -46,6 +46,11 @@ class ScheduleConfig:
 	at: str = "09:00"  # one or more HH:MM, comma-separated
 	days: str = "mon"  # weekly only: comma-separated weekday abbrevs (mon..sun)
 	cron: str = ""
+	# Extra environment variables baked into the native scheduler unit. The
+	# scheduled job (and the claude CLI it shells out to for triage) inherit a
+	# bare environment, so e.g. CLAUDE_ACCOUNT here lets an account-aware claude
+	# wrapper resolve a profile when it cannot from the job's working directory.
+	env: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
@@ -233,8 +238,9 @@ def _load_schedule(d: dict[str, Any]) -> ScheduleConfig:
 			f"schedule.cron is set but interval is {interval!r}; "
 			"set interval = 'cron' or clear cron"
 		)
+	env = {str(k): str(v) for k, v in d.get("env", {}).items()}
 	return ScheduleConfig(
-		interval=interval, at=d.get("at", "09:00"), days=d.get("days", "mon"), cron=cron
+		interval=interval, at=d.get("at", "09:00"), days=d.get("days", "mon"), cron=cron, env=env
 	)
 
 

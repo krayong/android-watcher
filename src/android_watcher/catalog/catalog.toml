@@ -45,7 +45,11 @@ path_prefix = ""
 feed_url = ""
 content_selector = ""
 default_weight = 0
-exclude_prefixes = ["/reference"]
+# /reference: per-symbol API docs. gki-android*-builds: auto-generated kernel
+# build lists that regenerate with new build rows on nearly every crawl, so they
+# churn the digest daily without telling a developer anything actionable (the
+# curated gki-faq / gki-releases / gki-versioning docs are still watched).
+exclude_prefixes = ["/reference", "/docs/core/architecture/kernel/gki-android"]
 
 [[source]]
 id = "android-security-bulletins"

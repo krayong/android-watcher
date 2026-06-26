@@ -215,6 +215,24 @@ interval = "fortnightly"
 		load_config(_write(tmp_path, text))
 
 
+def test_schedule_env_loaded(tmp_path):
+	text = """
+[schedule]
+interval = "daily"
+at = "09:00"
+
+[schedule.env]
+CLAUDE_ACCOUNT = "personal"
+"""
+	cfg = load_config(_write(tmp_path, text))
+	assert cfg.schedule.env == {"CLAUDE_ACCOUNT": "personal"}
+
+
+def test_schedule_env_defaults_empty(tmp_path):
+	cfg = load_config(_write(tmp_path, '[schedule]\ninterval = "daily"\n'))
+	assert cfg.schedule.env == {}
+
+
 def test_paths(monkeypatch, tmp_path):
 	monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
 	monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))

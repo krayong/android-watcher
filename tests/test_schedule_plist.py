@@ -105,3 +105,30 @@ def test_render_plist_omits_env_without_path() -> None:
 		sched,
 	)
 	assert "EnvironmentVariables" not in result
+
+
+def test_render_plist_embeds_schedule_env() -> None:
+	# Extra env from ScheduleConfig.env is baked into EnvironmentVariables so the
+	# scheduled run carries e.g. CLAUDE_ACCOUNT for an account-aware claude wrapper.
+	sched = ScheduleConfig(interval="daily", at="09:00", env={"CLAUDE_ACCOUNT": "personal"})
+	result = render_plist(
+		"com.krayong.android-watcher",
+		["/usr/bin/android-watcher", "run"],
+		sched,
+		path_env="/usr/bin:/bin",
+	)
+	assert "<key>EnvironmentVariables</key>" in result
+	assert "<key>CLAUDE_ACCOUNT</key>" in result
+	assert "<string>personal</string>" in result
+	assert "<key>PATH</key>" in result
+
+
+def test_render_plist_env_without_path() -> None:
+	sched = ScheduleConfig(interval="daily", at="09:00", env={"CLAUDE_ACCOUNT": "personal"})
+	result = render_plist(
+		"com.krayong.android-watcher",
+		["/usr/bin/android-watcher", "run"],
+		sched,
+	)
+	assert "<key>CLAUDE_ACCOUNT</key>" in result
+	assert "<key>PATH</key>" not in result
