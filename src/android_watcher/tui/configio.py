@@ -79,12 +79,12 @@ def _in_git_worktree(path: str) -> bool:
 def config_to_toml(config: Config) -> str:
 	"""Serialize *config* to a TOML string.
 
-	Secret strings (password, slack bot_token, telegram bot_token) are written
-	exactly as held in Config — ${ENV_VAR} refs are preserved verbatim, never expanded.
-	EmailChannel.sender maps to the TOML key ``from``; .recipient maps to ``to``.
+	Only the surfaced channels (Slack, Desktop) are written. The Slack bot_token
+	is written exactly as held — a ${ENV_VAR} ref is preserved verbatim, never
+	expanded.
 	"""
 	sc, ai, dg = config.schedule, config.ai, config.digest
-	em, sl = config.email, config.slack
+	sl = config.slack
 	lines: list[str] = []
 
 	# Top-level scalar keys must come before any section headers so TOML
@@ -121,27 +121,14 @@ def config_to_toml(config: Config) -> str:
 		lines.append(f"{_toml_str(key)} = {weight}")
 	lines.append("")
 
-	lines.append("[channels.email]")
-	lines.append(f"enabled = {'true' if em.enabled else 'false'}")
-	lines.append(f"smtp_host = {_toml_str(em.smtp_host)}")
-	lines.append(f"smtp_port = {em.smtp_port}")
-	lines.append(f"username = {_toml_str(em.username)}")
-	lines.append(f"password = {_toml_str(em.password)}")
-	lines.append(f"from = {_toml_str(em.sender)}")
-	lines.append(f"to = {_toml_str(em.recipient)}")
-	lines.append("")
-
+	# Only the surfaced channels (Slack, Desktop) are serialized. Email and
+	# Telegram remain fully functional in the code and load_config still parses a
+	# hand-added [channels.email] / [channels.telegram] section, but the TUI no
+	# longer writes or manages them.
 	lines.append("[channels.slack]")
 	lines.append(f"enabled = {'true' if sl.enabled else 'false'}")
 	lines.append(f"bot_token = {_toml_str(sl.bot_token)}")
 	lines.append(f"channel = {_toml_str(sl.channel)}")
-	lines.append("")
-
-	tg = config.telegram
-	lines.append("[channels.telegram]")
-	lines.append(f"enabled = {'true' if tg.enabled else 'false'}")
-	lines.append(f"bot_token = {_toml_str(tg.bot_token)}")
-	lines.append(f"chat_id = {_toml_str(tg.chat_id)}")
 	lines.append("")
 
 	ds = config.desktop
@@ -187,24 +174,18 @@ def validate_config(config: Config) -> list[str]:
 		errors.append(str(exc))
 	finally:
 		os.unlink(tmp)
+	# Any enabled channel satisfies the requirement (a hand-configured email or
+	# telegram still counts), but the guidance names only the surfaced channels.
 	if not (
 		config.email.enabled
 		or config.slack.enabled
 		or config.telegram.enabled
 		or config.desktop.enabled
 	):
-		errors.append(
-			"enable at least one delivery channel (Email, Slack, Telegram, or Desktop) "
-			"to receive digests"
-		)
+		errors.append("enable at least one delivery channel (Slack or Desktop) to receive digests")
 	sl = config.slack
 	if sl.enabled and not (sl.bot_token and sl.channel):
 		errors.append("slack channel is enabled but bot_token + channel are required")
-	tg = config.telegram
-	if tg.enabled and not tg.bot_token:
-		errors.append("telegram channel is enabled but bot_token is empty")
-	if tg.enabled and not tg.chat_id:
-		errors.append("telegram channel is enabled but chat_id is empty")
 	if config.desktop.enabled and not desktop_mechanism_available():
 		errors.append(
 			"desktop channel is enabled but no notifier is available "

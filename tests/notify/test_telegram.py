@@ -20,7 +20,6 @@ from android_watcher.config import (
 from android_watcher.models import Change, Digest, DigestGroup, NotifyError
 from android_watcher.notify.render import render_telegram
 from android_watcher.notify.telegram import TelegramNotifier
-from android_watcher.tui.configio import validate_config
 
 # ---------------------------------------------------------------------------
 # Fixtures / helpers
@@ -381,54 +380,7 @@ class TestTelegramConfigInterpolation:
 
 
 # ---------------------------------------------------------------------------
-# validate_config: enabled telegram with missing fields
-# ---------------------------------------------------------------------------
-
-
-class TestValidateTelegram:
-	def _base_config(self) -> Config:
-		return Config(
-			schedule=ScheduleConfig(),
-			ai=AIConfig(),
-			digest=DigestConfig(),
-			sort={},
-			email=EmailChannel(),
-			slack=SlackChannel(),
-			telegram=TelegramChannel(),
-			custom_sources=[],
-			enabled_source_ids=set(),
-		)
-
-	def test_enabled_with_missing_bot_token_is_error(self) -> None:
-		cfg = self._base_config()
-		cfg.telegram.enabled = True
-		cfg.telegram.bot_token = ""
-		cfg.telegram.chat_id = "123"
-		errors = validate_config(cfg)
-		assert any("bot_token" in e for e in errors)
-
-	def test_enabled_with_missing_chat_id_is_error(self) -> None:
-		cfg = self._base_config()
-		cfg.telegram.enabled = True
-		cfg.telegram.bot_token = "sometoken"
-		cfg.telegram.chat_id = ""
-		errors = validate_config(cfg)
-		assert any("chat_id" in e for e in errors)
-
-	def test_enabled_with_both_fields_is_valid(self) -> None:
-		cfg = self._base_config()
-		cfg.telegram.enabled = True
-		cfg.telegram.bot_token = "sometoken"
-		cfg.telegram.chat_id = "123"
-		errors = validate_config(cfg)
-		assert errors == []
-
-	def test_disabled_with_empty_fields_is_valid(self) -> None:
-		cfg = self._base_config()
-		cfg.telegram.enabled = False
-		# Another channel must be enabled for the config to be complete.
-		cfg.slack.enabled = True
-		cfg.slack.bot_token = "xoxb-test"
-		cfg.slack.channel = "#updates"
-		errors = validate_config(cfg)
-		assert errors == []
+# Telegram is a hidden channel: the TUI no longer manages it and
+# config_to_toml drops the section, so validate_config does not validate its
+# sub-fields. The notifier, render, loader, and ${ENV} interpolation above are
+# the kept code that keeps a hand-configured telegram channel working.

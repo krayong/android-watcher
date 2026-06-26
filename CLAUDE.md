@@ -7,9 +7,11 @@ of truth. Build to these, not to memory.
 
 A self-hosted Python CLI that watches official Google Android sites, detects
 real (not cosmetic) changes on a schedule, uses Claude to triage and describe
-them, ranks the result, and delivers a digest to email or Slack. Single user per
-install. Configured through a Textual TUI that writes a TOML file and installs a
-native scheduled job.
+them, ranks the result, and delivers a digest to Slack or a desktop notification.
+The email and telegram notifiers still ship and work when hand-configured, but the
+setup TUI and docs surface only Slack and Desktop. Single user per install.
+Configured through a Textual TUI that writes a TOML file and installs a native
+scheduled job.
 
 ## Commands
 
@@ -150,6 +152,10 @@ them without understanding why they exist.
   watched; on id collision a custom source overrides the catalog. The TUI writes the reserved id `["__none__"]` to
   mean "watch no catalog sources."
 - SMTP enforces TLS and fails closed. The Slack bot token is a secret.
+- Surfaced channels are Slack and Desktop: the TUI and `config_to_toml` only manage/serialize those two. The email and
+  telegram notifiers, their `Config` dataclasses, and their `load_config` parsers stay intact, so a hand-added
+  `[channels.email]` / `[channels.telegram]` section still loads and delivers — they are hidden, not removed. A TUI
+  re-save drops any unsurfaced section it did not write.
 
 ### Conventions
 

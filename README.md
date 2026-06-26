@@ -35,8 +35,8 @@ bookmarks, and most of what changes is a typo fix or a template reflow.
 `android-watcher` checks a curated catalog of official sources on a schedule,
 detects real changes (not cosmetic churn), uses Claude to decide what is worth
 your attention and write a short description, ranks the result, and delivers a
-digest to email, Slack, or Telegram. When nothing substantive changed, it says so
-instead of padding a digest with noise.
+digest to Slack or a desktop notification. When nothing substantive changed, it
+says so instead of padding a digest with noise.
 
 Install it once, run the interactive setup wizard, and receive a daily (or
 hourly, or weekly) digest.
@@ -128,24 +128,14 @@ empty = "send"         # send | skip  (what to do when nothing substantive chang
 # Optional per-source or per-category priority overrides (higher = ranked first).
 # "android-developers-blog" = 90
 
-[channels.email]
-enabled = true
-smtp_host = "smtp.example.com"
-smtp_port = 465                                    # TLS required: implicit (465) or STARTTLS
-username = "you@example.com"
-password = "${ANDROID_WATCH_SMTP_PASSWORD}"        # env-var ref recommended; see Security
-from = "you@example.com"
-to = "you@example.com"
-
 [channels.slack]
 enabled = true
 bot_token = "${ANDROID_WATCH_SLACK_TOKEN}"        # env-var ref recommended (bot token is a secret)
 channel = "C0123456789"                           # channel ID (or #channel-name)
 
-[channels.telegram]
+[channels.desktop]
 enabled = false
-bot_token = "${ANDROID_WATCH_TELEGRAM_TOKEN}"     # env-var ref recommended (bot token is a secret)
-chat_id = "123456789"
+sound = "Glass"                                    # macOS notification sound; click opens the full digest
 
 # Add your own URLs (same shape as catalog entries):
 # [[custom_source]]
@@ -160,18 +150,16 @@ chat_id = "123456789"
 
 ### Secrets
 
-The secrets android-watcher uses are the SMTP password, the Slack bot token, and
-the Telegram bot token. Use **environment-variable references** so those values
-are never written into the config file:
+The secret android-watcher uses is the Slack bot token. Use an
+**environment-variable reference** so the value is never written into the config
+file:
 
 ```sh
-export ANDROID_WATCH_SMTP_PASSWORD="hunter2"
 export ANDROID_WATCH_SLACK_TOKEN="xoxb-..."
-export ANDROID_WATCH_TELEGRAM_TOKEN="1234567890:AAF..."
 ```
 
-The config stores `${ANDROID_WATCH_SMTP_PASSWORD}` literally; the value is
-resolved at runtime. Inline plaintext works but is discouraged.
+The config stores `${ANDROID_WATCH_SLACK_TOKEN}` literally; the value is resolved
+at runtime. Inline plaintext works but is discouraged.
 
 ---
 
@@ -212,10 +200,10 @@ missed run on the next wake and catches up automatically.
 
 ## Security and privacy
 
-**Secrets.** The secrets are the SMTP password, the Slack bot token, and the
-Telegram bot token. The config file is written `0600`. Prefer environment-variable
-references (`password = "${ANDROID_WATCH_SMTP_PASSWORD}"`) so plaintext values
-are never written to disk.
+**Secrets.** The secret is the Slack bot token. The config file is written
+`0600`. Prefer an environment-variable reference
+(`bot_token = "${ANDROID_WATCH_SLACK_TOKEN}"`) so plaintext values are never
+written to disk.
 
 **Keep config out of git.** If you keep your config under version control, never
 commit a file with inline secrets. Add to `.gitignore`:
@@ -227,8 +215,7 @@ config.toml
 ```
 
 The TUI and `--config` warn when the config path is inside a git work tree,
-because an accidental commit would expose your SMTP password, Slack bot token, or
-Telegram bot token.
+because an accidental commit would expose your Slack bot token.
 
 **AI data egress.** When `[ai] mode = "claude_cli"`, the **content of changed
 pages is sent to the `claude` CLI** for triage and description. For the shipped
@@ -237,12 +224,7 @@ as an internal wiki), that page content is also sent to `claude`. Set
 `[ai] mode = "off"` for the no-egress path: no triage, no descriptions, no
 page content leaves your machine.
 
-**SMTP transport.** SMTP enforces TLS (implicit on port 465 or mandatory
-STARTTLS) with certificate verification. It fails closed rather than downgrading
-to plaintext.
-
-**Slack and Telegram.** The Slack bot token and Telegram bot token are treated
-as bearer secrets and are never logged.
+**Slack.** The Slack bot token is treated as a bearer secret and is never logged.
 
 ---
 

@@ -10,17 +10,14 @@ are not patched.
 `android-watcher` is a self-hosted, single-user CLI. It does not run as a service
 exposed to the network.
 
-**Credentials at rest.** SMTP password and Slack bot token are stored in a
-config file written `0600`. Both fields support `${ENV_VAR}` substitution so
-secrets need not be written in plaintext — the literal `${...}` token is
-preserved on disk; the value is resolved only at runtime from the environment.
+**Credentials at rest.** The Slack bot token is stored in a config file written
+`0600`. The field supports `${ENV_VAR}` substitution so the secret need not be
+written in plaintext — the literal `${...}` token is preserved on disk; the value
+is resolved only at runtime from the environment.
 
 **Outbound egress.** When AI triage is enabled, the tool shells out to the local
 `claude` CLI and passes fetched page content to it. That content is sent to
 Anthropic's API as part of the triage prompt. No other data leaves the machine.
-
-**Transport.** SMTP connections enforce TLS and fail closed — plaintext delivery
-is not attempted as a fallback.
 
 ## Reporting a vulnerability
 

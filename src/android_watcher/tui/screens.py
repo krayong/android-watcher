@@ -431,11 +431,7 @@ class MainMenuScreen(_Nav):
 
 	def _summaries(self) -> list[tuple[str, str, str]]:
 		c = self._config
-		channels = [
-			name
-			for name, ch in (("slack", c.slack), ("telegram", c.telegram), ("desktop", c.desktop))
-			if ch.enabled
-		]
+		channels = [name for name, ch in (("slack", c.slack), ("desktop", c.desktop)) if ch.enabled]
 		sched = c.schedule
 		when = sched.cron if sched.interval == "cron" else f"{sched.interval} {sched.at}".strip()
 		return [
@@ -750,7 +746,6 @@ class ChannelsScreen(_Nav):
 		c = self._config
 		return (
 			("slack", "Slack", c.slack),
-			("telegram", "Telegram", c.telegram),
 			("desktop", "Desktop", c.desktop),
 		)
 
@@ -822,8 +817,6 @@ class ChannelsScreen(_Nav):
 		match option_id:
 			case "slack":
 				self.app.push_screen(SlackScreen(self._config))
-			case "telegram":
-				self.app.push_screen(TelegramScreen(self._config))
 			case "__done__":
 				self._forward()
 
@@ -866,19 +859,6 @@ class SlackScreen(_ChannelScreen):
 		]
 
 
-class TelegramScreen(_ChannelScreen):
-	TITLE = "Telegram"
-
-	def _channel(self):
-		return self._config.telegram
-
-	def _fields(self) -> list[Field]:
-		return [
-			Field("bot_token", "Bot token", "secret", help="From @BotFather"),
-			Field("chat_id", "Chat IDs", "text", help="Comma-separated user or group chat ids"),
-		]
-
-
 class ReviewScreen(_Nav):
 	"""Final wizard step: review every choice, show where it saves, then save."""
 
@@ -916,11 +896,7 @@ class ReviewScreen(_Nav):
 		else:
 			when = f"daily at {s.at}"
 		ai = "off" if c.ai.mode == "off" else f"claude ({c.ai.model})"
-		channels = [
-			n
-			for n, ch in (("slack", c.slack), ("telegram", c.telegram), ("desktop", c.desktop))
-			if ch.enabled
-		]
+		channels = [n for n, ch in (("slack", c.slack), ("desktop", c.desktop)) if ch.enabled]
 		channels_str = ", ".join(channels) if channels else "none — pick one to finish!"
 		return [
 			f"Sources    {watched_count(c)} selected",
