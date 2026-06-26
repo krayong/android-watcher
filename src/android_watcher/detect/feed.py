@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import hashlib
+import html as _html
+import re
 from urllib.parse import urlsplit, urlunsplit
 
 from defusedxml import ElementTree as ET
@@ -9,6 +11,62 @@ from ..models import Change, Source
 from .base import DETECTORS
 
 _ATOM = "{http://www.w3.org/2005/Atom}"
+
+# A whole feed title that is *only* a date (e.g. the AndroidX aggregate feed,
+# which titles every entry "June 24, 2026"). Such a title makes a useless digest
+# headline, so it is replaced by the library/version names from the summary.
+_DATE_TITLE_RE = re.compile(
+	r"^(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|"
+	r"aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s+"
+	r"\d{1,2},\s+\d{4}$",
+	re.IGNORECASE,
+)
+_LINK_TEXT_RE = re.compile(r"<a\b[^>]*>(.*?)</a>", re.IGNORECASE | re.DOTALL)
+_TAG_RE = re.compile(r"<[^>]+>")
+
+
+def _is_date_title(title: str) -> bool:
+	return bool(_DATE_TITLE_RE.match(title.strip()))
+
+
+def _summary_items(summary: str) -> list[str]:
+	"""Library/version labels from a summary's <a> link texts, in order.
+
+	"Media3 Version 1.11.0-alpha01" -> "Media3 1.11.0-alpha01" (the boilerplate
+	word "Version" is dropped). Returns [] when the summary has no links.
+	"""
+	items: list[str] = []
+	for raw in _LINK_TEXT_RE.findall(summary):
+		text = _html.unescape(_TAG_RE.sub("", raw))
+		text = re.sub(r"\bversion\b", "", text, flags=re.IGNORECASE)
+		text = re.sub(r"\s+", " ", text).strip()
+		if text:
+			items.append(text)
+	return items
+
+
+def _synthesize_title(summary: str) -> str | None:
+	"""A digest headline built from a date-titled entry's summary, or None.
+
+	One library -> its label; several -> the first two labels then "+N more".
+	"""
+	items = _summary_items(summary)
+	if not items:
+		return None
+	if len(items) == 1:
+		return items[0]
+	head = ", ".join(items[:2])
+	rest = len(items) - 2
+	return f"{head} +{rest} more" if rest else head
+
+
+def _display_title(item: dict) -> str:
+	"""The entry's own title, unless it is a bare date and the summary yields a
+	better headline. Identity and the dedupe hash still use the original title."""
+	title = item["title"]
+	if _is_date_title(title):
+		return _synthesize_title(item["summary"]) or title
+	return title
 
 
 def _normalize_link(link: str) -> str:
@@ -107,6 +165,7 @@ class FeedDetector:
 			if not identity:
 				continue
 			content_hash = _hash(item["title"], item["summary"])
+			title = _display_title(item)
 			prior = store.seen_feed_item(source.id, identity)
 			if prior is None:
 				changes.append(
@@ -114,7 +173,7 @@ class FeedDetector:
 						source_id=source.id,
 						url=item["link"] or identity,
 						change_kind="new",
-						title=item["title"],
+						title=title,
 						raw_diff=f"{item['title']}\n\n{item['summary']}".strip()[:500],
 						fetched_hash=content_hash,
 					)
@@ -126,7 +185,7 @@ class FeedDetector:
 						source_id=source.id,
 						url=item["link"] or identity,
 						change_kind="updated",
-						title=item["title"],
+						title=title,
 						raw_diff=f"{item['title']}\n\n{item['summary']}".strip()[:500],
 						fetched_hash=content_hash,
 					)

@@ -67,6 +67,10 @@ class FakeStore:
 			change.id = 1000 + len(self.recorded)
 		return change.id
 
+	def changes_needing_triage(self) -> list[Change]:
+		# Ledger double: every recorded row still awaiting a verdict.
+		return [c for c in self.recorded if c.verdict is None]
+
 	def changes_for_digest(self, channels: set[str]) -> list[Change]:
 		if not channels:
 			return []
@@ -490,6 +494,42 @@ def test_write_once_triage_only_verdict_null(patched, monkeypatch):
 	assert triaged_ids == [100]  # only the verdict-None change
 	# set_verdict called for the newly triaged row only
 	assert [v[0] for v in store.verdicts] == [100]
+
+
+def test_triage_drains_stranded_ledger_rows(patched, monkeypatch):
+	"""Triage must resolve ledger rows left NULL by a prior run that could not
+	triage, even when this run detects nothing new (the row will never be
+	re-detected, so it would strand otherwise)."""
+	store, detect_calls = patched
+	install_notifiers(monkeypatch)
+	stranded = Change(source_id="src", url="https://x/stranded", change_kind="new", id=900)
+	store.record_change(stranded)  # already in the ledger, verdict None
+	detect_calls["changes"] = []  # this run detects nothing new
+	captured = install_triager(
+		monkeypatch, lambda changes: TriageResult(changes=[_set(c) for c in changes])
+	)
+
+	run_mod.run_once(make_config(ai_mode="claude_cli"))
+
+	assert 900 in [c.id for c in captured["changes"]]
+	assert 900 in [v[0] for v in store.verdicts]
+
+
+def test_unavailable_triage_sends_all_as_substantive(patched, monkeypatch):
+	"""When triage is unavailable we fail open: every untriaged change is marked
+	substantive so the digest still goes out (with the banner) instead of
+	silently withholding the change until some later run."""
+	store, detect_calls = patched
+	install_notifiers(monkeypatch)
+	detect_calls["changes"] = [
+		Change(source_id="src", url="https://x/a", change_kind="new", id=700)
+	]
+	store.digest_changes = []
+	install_triager(monkeypatch, lambda changes: TriageResult(changes=changes, unavailable="down"))
+
+	run_mod.run_once(make_config(ai_mode="claude_cli"))
+
+	assert (700, "substantive", None) in store.verdicts
 
 
 def _set(change):

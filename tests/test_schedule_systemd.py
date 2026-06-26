@@ -73,3 +73,14 @@ def test_render_service_embeds_path_env() -> None:
 def test_render_service_omits_env_without_path() -> None:
 	result = render_service("/usr/bin/android-watcher", ["run"])
 	assert "Environment=" not in result
+
+
+def test_render_service_embeds_schedule_env() -> None:
+	result = render_service(
+		"/usr/bin/android-watcher",
+		["run"],
+		path_env="/usr/bin:/bin",
+		env={"CLAUDE_ACCOUNT": "personal"},
+	)
+	assert "Environment=PATH=/usr/bin:/bin" in result
+	assert "Environment=CLAUDE_ACCOUNT=personal" in result

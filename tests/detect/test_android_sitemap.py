@@ -453,6 +453,30 @@ async def test_exclude_prefixes_drops_subtree():
 
 
 @pytest.mark.asyncio
+async def test_source_android_excludes_gki_build_lists():
+	"""The per-version GKI build-list pages auto-regenerate constantly (new build
+	rows), so the shipped source-android catalog entry must drop them while still
+	watching the curated GKI docs."""
+	from android_watcher.catalog import load_catalog
+
+	source_android = next(s for s in load_catalog() if s.id == "source-android")
+	got = await _watched_paths(
+		source_android,
+		[
+			"/docs/core/architecture/kernel/gki-android14-5_15-release-builds",
+			"/docs/core/architecture/kernel/gki-android17-6_18-deprecated-builds",
+			"/docs/core/architecture/kernel/gki-faq",
+			"/docs/core/architecture/kernel/gki-releases",
+		],
+		host="https://source.android.com",
+	)
+	assert got == {
+		"/docs/core/architecture/kernel/gki-faq",
+		"/docs/core/architecture/kernel/gki-releases",
+	}
+
+
+@pytest.mark.asyncio
 async def test_require_segment_keeps_android_drops_others():
 	src = _src(
 		url="https://developers.google.com/x",

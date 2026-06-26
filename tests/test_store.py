@@ -87,6 +87,37 @@ def test_change_record_and_digest_query(store):
 	assert ids == {cid}
 
 
+def test_changes_needing_triage_returns_untriaged_ledger_rows(store):
+	"""Triage must drain ALL ledger rows with a NULL verdict, not just the ones
+	detected in the current run. A change recorded during an AI-down run (verdict
+	left NULL) would otherwise never be re-detected, so it must be picked up from
+	the ledger on a later run."""
+	# A row from a prior AI-down run: recorded, never triaged.
+	stranded = Change(
+		source_id="src", url="https://e/stranded", change_kind="new", title="June 24, 2026"
+	)
+	sid = store.record_change(stranded)
+	# A row already triaged: must NOT come back for triage (write-once).
+	done = Change(source_id="src", url="https://e/done", change_kind="new")
+	did = store.record_change(done)
+	store.set_verdict(did, "substantive", "already described")
+	# A NULL row that was superseded: excluded.
+	old = Change(source_id="src", url="https://e/sup", change_kind="updated")
+	oid = store.record_change(old)
+	store._conn.execute("UPDATE changes SET superseded = 1 WHERE id = ?", (oid,))
+	store._conn.commit()
+
+	pending = store.changes_needing_triage()
+	ids = {c.id for c in pending}
+	assert sid in ids
+	assert did not in ids
+	assert oid not in ids
+	# The reconstructed Change carries the data triage needs (raw_diff, title).
+	row = next(c for c in pending if c.id == sid)
+	assert row.title == "June 24, 2026"
+	assert row.verdict is None
+
+
 def test_changes_for_digest_empty_channels_returns_empty(store):
 	# CONTRACTS: an empty channel set yields [] (no channel => nothing to send).
 	c = Change(source_id="src", url="https://e/p", change_kind="new", fetched_hash="h1")

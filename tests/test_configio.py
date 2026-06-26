@@ -34,7 +34,7 @@ from android_watcher.tui.configio import (
 def _make_full_config() -> Config:
 	"""A Config with every field populated, using ${...} secret refs."""
 	return Config(
-		schedule=ScheduleConfig(interval="daily", at="09:00"),
+		schedule=ScheduleConfig(interval="daily", at="09:00", env={"CLAUDE_ACCOUNT": "personal"}),
 		ai=AIConfig(mode="claude_cli", model="claude-opus-4-8"),
 		digest=DigestConfig(max_items=5, empty="send"),
 		sort={"security": 10, "releases": 5},
@@ -91,6 +91,7 @@ def test_roundtrip_preserves_fields(tmp_path: Path) -> None:
 
 	assert loaded.schedule.interval == "daily"
 	assert loaded.schedule.at == "09:00"
+	assert loaded.schedule.env == {"CLAUDE_ACCOUNT": "personal"}
 	assert loaded.ai.mode == "claude_cli"
 	assert loaded.ai.model == "claude-opus-4-8"
 	assert loaded.digest.max_items == 5

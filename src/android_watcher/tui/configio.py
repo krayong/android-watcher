@@ -100,6 +100,12 @@ def config_to_toml(config: Config) -> str:
 	lines.append(f"cron = {_toml_str(sc.cron)}")
 	lines.append("")
 
+	if sc.env:
+		lines.append("[schedule.env]")
+		for key, val in sc.env.items():
+			lines.append(f"{_toml_str(key)} = {_toml_str(val)}")
+		lines.append("")
+
 	lines.append("[ai]")
 	lines.append(f"mode = {_toml_str(ai.mode)}")
 	lines.append(f"model = {_toml_str(ai.model)}")

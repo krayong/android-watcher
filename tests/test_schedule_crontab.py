@@ -71,3 +71,11 @@ def test_render_crontab_omits_path_without_path_env() -> None:
 	sched = ScheduleConfig(interval="daily", at="09:00")
 	result = render_crontab("/usr/bin/android-watcher run", sched, "Europe/Berlin")
 	assert "\nPATH=" not in result
+
+
+def test_render_crontab_embeds_schedule_env() -> None:
+	sched = ScheduleConfig(interval="daily", at="09:00", env={"CLAUDE_ACCOUNT": "personal"})
+	result = render_crontab("/usr/bin/android-watcher run", sched, "Europe/Berlin")
+	assert "CLAUDE_ACCOUNT=personal" in result
+	# Env assignments must precede the schedule line to take effect.
+	assert result.index("CLAUDE_ACCOUNT=personal") < result.index("0 9 * * *")
