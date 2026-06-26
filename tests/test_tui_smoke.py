@@ -26,7 +26,6 @@ from android_watcher.tui.screens import (
 	SlackScreen,
 	SourcesGateScreen,
 	SourcesScreen,
-	TelegramScreen,
 	WelcomeScreen,
 )
 
@@ -319,7 +318,8 @@ async def test_channels_hub_configure_and_done_returns():
 
 
 @pytest.mark.asyncio
-async def test_email_not_offered_in_channels():
+async def test_email_and_telegram_not_offered_in_channels():
+	"""Only the surfaced channels (Slack, Desktop) appear in the TUI hub."""
 	cfg = _blank_config()
 	app = AndroidWatcher(config=cfg, first_run=False)
 	async with app.run_test() as pilot:
@@ -330,8 +330,8 @@ async def test_email_not_offered_in_channels():
 			app.screen.query_one("#ch-list", OptionList).get_option_at_index(i).id
 			for i in range(app.screen.query_one("#ch-list", OptionList).option_count)
 		}
-		assert "email" not in ids
-		assert {"slack", "telegram"} <= ids
+		assert ids.isdisjoint({"email", "telegram"})
+		assert {"slack", "desktop"} <= ids
 
 
 @pytest.mark.asyncio
@@ -342,19 +342,19 @@ async def test_inline_edit_sets_value_no_new_screen():
 		await pilot.pause()
 		app.screen._activate("channels")  # type: ignore[attr-defined]
 		await pilot.pause()
-		app.screen._activate("telegram")  # type: ignore[attr-defined]
+		app.screen._activate("slack")  # type: ignore[attr-defined]
 		await pilot.pause()
 		screen = app.screen
-		assert isinstance(screen, TelegramScreen)
-		screen._open_editor(screen._field("chat_id"))  # type: ignore[attr-defined]
+		assert isinstance(screen, SlackScreen)
+		screen._open_editor(screen._field("channel"))  # type: ignore[attr-defined]
 		await pilot.pause()
 		editor = screen.query_one("#editor", Input)
 		assert editor.display is True  # inline editor, same screen
-		screen.on_input_submitted(Input.Submitted(editor, "12345"))
+		screen.on_input_submitted(Input.Submitted(editor, "#updates"))
 		await pilot.pause()
-		assert isinstance(app.screen, TelegramScreen)  # no new screen pushed
-	assert cfg.telegram.chat_id == "12345"
-	assert cfg.telegram.enabled is True
+		assert isinstance(app.screen, SlackScreen)  # no new screen pushed
+	assert cfg.slack.channel == "#updates"
+	assert cfg.slack.enabled is True
 
 
 @pytest.mark.asyncio

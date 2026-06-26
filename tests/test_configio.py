@@ -96,17 +96,15 @@ def test_roundtrip_preserves_fields(tmp_path: Path) -> None:
 	assert loaded.ai.model == "claude-opus-4-8"
 	assert loaded.digest.max_items == 5
 	assert loaded.digest.empty == "send"
-	# Secret refs preserved verbatim (not expanded)
-	assert loaded.email.password == "${SMTP_PW}"
+	# Secret refs preserved verbatim (not expanded) for the surfaced channels.
 	assert loaded.slack.bot_token == "${SLACK_BOT}"
 	assert loaded.slack.channel == "#dev"
-	assert loaded.telegram.bot_token == "${TG_TOKEN}"
-	assert loaded.telegram.chat_id == "-100123"
 	assert loaded.desktop.enabled is True
 	assert loaded.desktop.sound == "Ping"
-	# sender/recipient mapping
-	assert loaded.email.sender == "from@example.com"
-	assert loaded.email.recipient == "to@example.com"
+	# Email and telegram are not serialized, so they round-trip back to defaults.
+	assert loaded.email.enabled is False
+	assert loaded.email.password == ""
+	assert loaded.telegram.enabled is False
 	# Custom source
 	assert len(loaded.custom_sources) == 1
 	src = loaded.custom_sources[0]
@@ -122,47 +120,34 @@ def test_roundtrip_preserves_fields(tmp_path: Path) -> None:
 
 
 def test_env_refs_not_expanded_on_write(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-	"""config_to_toml must write ${SMTP_PW} literally, even when the var is set."""
-	monkeypatch.setenv("SMTP_PW", "secret")
+	"""config_to_toml must write a ${ENV} secret literally, even when the var is set."""
+	monkeypatch.setenv("SLACK_TOKEN", "secret")
 	cfg = Config(
 		schedule=ScheduleConfig(),
 		ai=AIConfig(),
 		digest=DigestConfig(),
 		sort={},
-		email=EmailChannel(enabled=True, smtp_host="smtp.example.com", password="${SMTP_PW}"),
-		slack=SlackChannel(),
+		email=EmailChannel(),
+		slack=SlackChannel(enabled=True, bot_token="${SLACK_TOKEN}", channel="#x"),
 		telegram=TelegramChannel(),
 		custom_sources=[],
 		enabled_source_ids=set(),
 	)
 	toml_text = config_to_toml(cfg)
-	assert "${SMTP_PW}" in toml_text
+	assert "${SLACK_TOKEN}" in toml_text
 	assert "secret" not in toml_text
 
 
-def test_from_to_key_mapping(tmp_path: Path) -> None:
-	"""TOML output uses keys 'from' and 'to', not 'sender'/'recipient'."""
-	cfg = Config(
-		schedule=ScheduleConfig(),
-		ai=AIConfig(),
-		digest=DigestConfig(),
-		sort={},
-		email=EmailChannel(sender="a@b.com", recipient="c@d.com"),
-		slack=SlackChannel(),
-		telegram=TelegramChannel(),
-		custom_sources=[],
-		enabled_source_ids=set(),
-	)
-	toml_text = config_to_toml(cfg)
-	assert 'from = "a@b.com"' in toml_text
-	assert 'to = "c@d.com"' in toml_text
-	assert "sender" not in toml_text
-	assert "recipient" not in toml_text
-
-	# Round-trip: load_config must map them back to sender/recipient
+def test_email_from_to_keys_load_to_sender_recipient(tmp_path: Path) -> None:
+	"""The email notifier is hidden but kept: a hand-added [channels.email] section
+	still loads, with the TOML keys 'from'/'to' mapped to sender/recipient."""
 	p = tmp_path / "config.toml"
-	write_config(cfg, str(p))
+	p.write_text(
+		'[channels.email]\nenabled = true\nfrom = "a@b.com"\nto = "c@d.com"\n',
+		encoding="utf-8",
+	)
 	loaded = load_config(str(p), expand=False)
+	assert loaded.email.enabled is True
 	assert loaded.email.sender == "a@b.com"
 	assert loaded.email.recipient == "c@d.com"
 
@@ -170,7 +155,8 @@ def test_from_to_key_mapping(tmp_path: Path) -> None:
 def test_open_existing_preserves_env_ref_with_var_set(
 	tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-	"""load_or_default with expand=False keeps ${AW_SMTP_PW} literal when var is set."""
+	"""load_or_default with expand=False keeps a hand-added [channels.email]
+	${AW_SMTP_PW} literal when the var is set (the email loader is kept)."""
 	config_file = tmp_path / "config.toml"
 	config_file.write_text(
 		'[channels.email]\nenabled = true\nsmtp_host = "smtp.example.com"\n'
@@ -183,10 +169,6 @@ def test_open_existing_preserves_env_ref_with_var_set(
 	cfg, existed = load_or_default()
 	assert existed is True
 	assert cfg.email.password == "${AW_SMTP_PW}"
-
-	toml_text = config_to_toml(cfg)
-	assert "${AW_SMTP_PW}" in toml_text
-	assert "topsecret" not in toml_text
 
 
 def test_open_existing_preserves_env_ref_with_var_unset(
@@ -402,25 +384,32 @@ def test_load_or_default_existing(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
 	assert cfg.schedule.interval == "weekly"
 
 
-def test_telegram_roundtrip_preserves_env_ref(tmp_path: Path) -> None:
-	"""[channels.telegram] round-trips with ${ENV} bot_token preserved verbatim."""
+def test_email_and_telegram_omitted_from_serialization_but_still_load(tmp_path: Path) -> None:
+	"""Hidden channels: config_to_toml writes neither email nor telegram, but a
+	hand-added section still loads and is usable (the notifier code is kept)."""
 	cfg = Config(
 		schedule=ScheduleConfig(),
 		ai=AIConfig(),
 		digest=DigestConfig(),
 		sort={},
-		email=EmailChannel(),
+		email=EmailChannel(enabled=True, smtp_host="smtp.example.com"),
 		slack=SlackChannel(),
 		telegram=TelegramChannel(enabled=True, bot_token="${TG_TOKEN}", chat_id="-100123"),
 		custom_sources=[],
 		enabled_source_ids=set(),
 	)
 	toml_text = config_to_toml(cfg)
-	assert "[channels.telegram]" in toml_text
-	assert "${TG_TOKEN}" in toml_text
+	assert "[channels.email]" not in toml_text
+	assert "[channels.telegram]" not in toml_text
+	assert "[channels.slack]" in toml_text
+	assert "[channels.desktop]" in toml_text
 
+	# A hand-added [channels.telegram] section still loads with its ${ENV} ref intact.
 	p = tmp_path / "config.toml"
-	write_config(cfg, str(p))
+	p.write_text(
+		'[channels.telegram]\nenabled = true\nbot_token = "${TG_TOKEN}"\nchat_id = "-100123"\n',
+		encoding="utf-8",
+	)
 	loaded = load_config(str(p), expand=False)
 	assert loaded.telegram.enabled is True
 	assert loaded.telegram.bot_token == "${TG_TOKEN}"

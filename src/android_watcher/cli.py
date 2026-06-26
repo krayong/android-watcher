@@ -100,7 +100,10 @@ def _cmd_tui(args: argparse.Namespace) -> int:
 	# wizard from the start in that case too — not only when the file is absent.
 	# (Short-circuits on a fresh install before touching the config fields.)
 	first_run = (not existed) or not (
-		config.email.enabled or config.slack.enabled or config.telegram.enabled
+		config.email.enabled
+		or config.slack.enabled
+		or config.telegram.enabled
+		or config.desktop.enabled
 	)
 	result = AndroidWatcher(config=config, first_run=first_run).run()
 	if isinstance(result, str):
