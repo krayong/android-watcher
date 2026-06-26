@@ -49,12 +49,17 @@ hourly, or weekly) digest.
 
 ```sh
 brew tap krayong/android-watcher https://github.com/krayong/android-watcher
+brew trust krayong/android-watcher
 brew install android-watcher
 ```
 
 The tap points straight at this repo's `Formula/`, so `brew upgrade` tracks new
 releases. (A bare `brew install android-watcher` without the tap only works once a
 formula is accepted into homebrew-core.)
+
+Homebrew 6.0+ refuses to load a formula from an untrusted third-party tap, so the
+`brew trust` step is required; without it `brew install` fails with "Refusing to
+load formula ... from untrusted tap." Older Homebrew versions don't need it.
 
 **PyPI** (via uv or pipx):
 
