@@ -23,6 +23,42 @@ def _store(tmp_path, name="state.db"):
 	return store
 
 
+def test_seed_export_excludes_content_text(tmp_path):
+	"""The seed must not carry full page bodies (content_text).
+
+	content_text is a local runtime cache used to diff a page against its prior
+	version; it is not needed to detect changes (content_hash does that) and it
+	bloats the shipped seed past GitHub's 100MB file limit and the wheel. On a
+	seeded install it imports empty and self-heals on the first change per page.
+	"""
+	src = _store(tmp_path, "src.db")
+	big_body = "UNIQUE_BODY_MARKER " * 1000
+	src.upsert_snapshot(
+		"s1",
+		"https://developer.android.com/x",
+		signal_type="sitemap",
+		content_hash="h",
+		lastmod="2026-06-20",
+		excerpt="short excerpt",
+		content_text=big_body,
+	)
+	sql = src.export_seed_sql("2026-06-21")
+	src.close()
+
+	# The full body must not appear anywhere in the seed.
+	assert "UNIQUE_BODY_MARKER" not in sql
+	assert "content_text" not in sql
+
+	# Round-trip still works: hash + excerpt survive, content_text imports empty.
+	dst = _store(tmp_path, "dst.db")
+	dst.import_seed_sql(sql)
+	snap = dst.get_snapshot("s1", "https://developer.android.com/x")
+	assert snap is not None
+	assert snap.content_hash == "h"
+	assert snap.excerpt == "short excerpt"
+	assert snap.content_text == ""
+
+
 def test_export_import_roundtrip(tmp_path):
 	src = _store(tmp_path, "src.db")
 	src.upsert_snapshot(
