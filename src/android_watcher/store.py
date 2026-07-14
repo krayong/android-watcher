@@ -488,6 +488,13 @@ class Store:
 	# Tables carried in a seed; run_state's seed_date marker is appended separately.
 	_SEED_TABLES = ("snapshots", "seen_feed_items", "http_cache")
 
+	# Columns held back from the seed. content_text is the full page body, a local
+	# runtime cache used only to diff a page against its prior version; it is not
+	# needed to detect changes (content_hash does that) and shipping it would bloat
+	# the seed past GitHub's 100MB file limit and the wheel. Seeded rows import it
+	# empty and self-heal on the first change per page.
+	_SEED_EXCLUDED_COLS = frozenset({"content_text"})
+
 	def seed_date(self) -> str | None:
 		"""The date the imported baseline was generated, or None if unseeded."""
 		row = self._conn.execute("SELECT value FROM run_state WHERE key = 'seed_date'").fetchone()
@@ -503,7 +510,7 @@ class Store:
 		for table in self._SEED_TABLES:
 			rows = self._conn.execute(f"SELECT * FROM {table}").fetchall()
 			for row in rows:
-				cols = row.keys()
+				cols = [c for c in row.keys() if c not in self._SEED_EXCLUDED_COLS]
 				vals = ", ".join(_sql_str(row[c]) for c in cols)
 				lines.append(f"INSERT OR IGNORE INTO {table} ({', '.join(cols)}) VALUES ({vals});")
 		lines.append(
