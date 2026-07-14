@@ -20,6 +20,7 @@ from ..models import Change, Source
 from ._normalize import (
 	EMPTY_RENDER_THRESHOLD,
 	content_hash,
+	diff_excerpt,
 	extract_main,
 	extract_title,
 	normalize_text,
@@ -109,6 +110,7 @@ async def _confirm_candidate(
 				content_hash=snap.content_hash,
 				lastmod=lastmod,
 				excerpt=snap.excerpt,
+				content_text=snap.content_text,
 			)
 		return None
 
@@ -141,6 +143,7 @@ async def _confirm_candidate(
 		content_hash=new_hash,
 		lastmod=lastmod,
 		excerpt=text[:500],
+		content_text=text,
 	)
 
 	if first_capture:
@@ -164,7 +167,7 @@ async def _confirm_candidate(
 		url=loc,
 		change_kind="updated",
 		title=title,
-		raw_diff=text[:500],
+		raw_diff=diff_excerpt(snap.content_text, text),
 		fetched_hash=new_hash,
 	)
 

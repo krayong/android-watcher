@@ -99,6 +99,61 @@ def test_markdown_fenced_result_parses_identically():
 
 
 # ---------------------------------------------------------------------------
+# Prose wrapped around the JSON — claude -p is an agent and sometimes
+# editorializes despite "respond with ONLY JSON". Extract the object anyway.
+# ---------------------------------------------------------------------------
+
+
+def test_prose_preamble_before_fenced_json_parses():
+	"""A prose preamble before the ```json block must not defeat parsing."""
+	changes = [_make_change(1)]
+	inner = {
+		"changes": [{"index": 1, "verdict": "substantive", "description": "New API added"}],
+		"tldr": None,
+	}
+	envelope = _load_envelope()
+	envelope["result"] = (
+		"Before answering, one thing worth flagging: the snippets look truncated.\n\n"
+		f"```json\n{json.dumps(inner)}\n```"
+	)
+
+	config = AIConfig()
+	with patch("subprocess.run") as mock_run:
+		mock_run.return_value = CompletedProcess(
+			args=[], returncode=0, stdout=json.dumps(envelope), stderr=""
+		)
+		result = _make_triager().triage(changes, config)
+
+	assert result.unavailable is None
+	assert changes[0].verdict == "substantive"
+	assert changes[0].description == "New API added"
+
+
+def test_trailing_prose_after_fenced_json_parses():
+	"""Commentary appended after the ```json block must not defeat parsing."""
+	changes = [_make_change(1)]
+	inner = {
+		"changes": [{"index": 1, "verdict": "cosmetic", "description": None}],
+		"tldr": None,
+	}
+	envelope = _load_envelope()
+	envelope["result"] = (
+		f"```json\n{json.dumps(inner)}\n```\n\n"
+		"One flag outside that JSON: every snippet is identical nav boilerplate."
+	)
+
+	config = AIConfig()
+	with patch("subprocess.run") as mock_run:
+		mock_run.return_value = CompletedProcess(
+			args=[], returncode=0, stdout=json.dumps(envelope), stderr=""
+		)
+		result = _make_triager().triage(changes, config)
+
+	assert result.unavailable is None
+	assert changes[0].verdict == "cosmetic"
+
+
+# ---------------------------------------------------------------------------
 # Cosmetic-with-description scrub
 # ---------------------------------------------------------------------------
 

@@ -23,6 +23,9 @@ class Snapshot:
 	lastmod: str
 	excerpt: str
 	fetched_at: datetime
+	# Full normalized page text (not just the 500-char excerpt), kept so the next
+	# run can diff old vs new and send only the changed regions to triage.
+	content_text: str = ""
 
 
 def _now_iso() -> str:
@@ -157,6 +160,7 @@ class Store:
 		self._add_column_if_missing("changes", "group_key", "TEXT")
 		self._add_column_if_missing("changes", "group_summary", "TEXT")
 		self._add_column_if_missing("changes", "group_title", "TEXT")
+		self._add_column_if_missing("snapshots", "content_text", "TEXT NOT NULL DEFAULT ''")
 
 	def _add_column_if_missing(self, table: str, column: str, decl: str) -> None:
 		cols = {r["name"] for r in self._conn.execute(f"PRAGMA table_info({table})").fetchall()}
@@ -195,6 +199,7 @@ class Store:
 			lastmod=row["lastmod"],
 			excerpt=row["excerpt"],
 			fetched_at=_parse_iso(row["fetched_at"]),
+			content_text=row["content_text"],
 		)
 
 	def upsert_snapshot(
@@ -206,20 +211,23 @@ class Store:
 		content_hash: str,
 		lastmod: str,
 		excerpt: str,
+		content_text: str = "",
 	) -> None:
 		self._conn.execute(
 			"""
             INSERT INTO snapshots
-                (source_id, url, signal_type, content_hash, lastmod, excerpt, fetched_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+                (source_id, url, signal_type, content_hash, lastmod, excerpt,
+                 content_text, fetched_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(source_id, url) DO UPDATE SET
                 signal_type = excluded.signal_type,
                 content_hash = excluded.content_hash,
                 lastmod = excluded.lastmod,
                 excerpt = excluded.excerpt,
+                content_text = excluded.content_text,
                 fetched_at = excluded.fetched_at
             """,
-			(source_id, url, signal_type, content_hash, lastmod, excerpt, _now_iso()),
+			(source_id, url, signal_type, content_hash, lastmod, excerpt, content_text, _now_iso()),
 		)
 		self._conn.commit()
 

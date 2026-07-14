@@ -32,6 +32,7 @@ class FakeStore:
 		content_hash: str,
 		lastmod: str,
 		excerpt: str,
+		content_text: str = "",
 	) -> None:
 		self.snaps[(source_id, url)] = Snapshot(
 			source_id=source_id,
@@ -41,6 +42,7 @@ class FakeStore:
 			lastmod=lastmod,
 			excerpt=excerpt,
 			fetched_at=datetime.now(UTC),
+			content_text=content_text,
 		)
 
 
@@ -143,6 +145,51 @@ async def test_lastmod_candidate_confirmed_by_content_change() -> None:
 	assert changes[0].change_kind == "updated"
 	assert changes[0].url == "https://site.example.com/docs/a"
 	assert changes[0].source_id == "generic"
+
+
+# ---------------------------------------------------------------------------
+# raw_diff sent to triage is a diff that excludes unchanged nav boilerplate
+# (content_selector="" watches the whole page, so nav sits at the front of the
+# text; a fixed prefix would be all nav — a diff must surface the body change).
+# ---------------------------------------------------------------------------
+
+
+def _whole_page_src() -> Source:
+	return Source(
+		id="generic",
+		name="Generic",
+		category="guides",
+		detector="sitemap",
+		url="https://site.example.com/sitemap.xml",
+		path_prefix="/docs",
+		content_selector="",
+	)
+
+
+@pytest.mark.asyncio
+async def test_raw_diff_excludes_unchanged_nav_and_carries_body_change() -> None:
+	store = FakeStore()
+	det = SitemapDetector()
+	routes = {
+		"https://site.example.com/sitemap.xml": read("sitemap_simple.xml"),
+		"https://site.example.com/docs/a": read("nav_page_before.html"),
+	}
+	await det.detect(_whole_page_src(), store, RouteFetcher(routes))
+
+	bumped = read("sitemap_simple.xml").replace("2026-06-10", "2026-06-20", 1)
+	routes2 = {
+		"https://site.example.com/sitemap.xml": bumped,
+		"https://site.example.com/docs/a": read("nav_page_after.html"),
+	}
+	changes = await det.detect(_whole_page_src(), store, RouteFetcher(routes2))
+
+	assert len(changes) == 1
+	diff = changes[0].raw_diff
+	# The changed body text must reach triage.
+	assert "3.2" in diff
+	assert "background refresh" in diff
+	# The shared, unchanged nav boilerplate must NOT dominate the diff.
+	assert "Build AI experiences" not in diff
 
 
 # ---------------------------------------------------------------------------

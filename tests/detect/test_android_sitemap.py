@@ -49,7 +49,9 @@ class FakeStore:
 	def source_has_snapshots(self, source_id):
 		return any(sid == source_id for sid, _url in self.snaps)
 
-	def upsert_snapshot(self, source_id, url, *, signal_type, content_hash, lastmod, excerpt):
+	def upsert_snapshot(
+		self, source_id, url, *, signal_type, content_hash, lastmod, excerpt, content_text=""
+	):
 		self.snaps[(source_id, url)] = Snapshot(
 			source_id=source_id,
 			url=url,
@@ -58,6 +60,7 @@ class FakeStore:
 			lastmod=lastmod,
 			excerpt=excerpt,
 			fetched_at=None,
+			content_text=content_text,
 		)
 
 
