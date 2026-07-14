@@ -105,16 +105,53 @@ def _strip_code_fence(text: str) -> str:
 	return s.strip()
 
 
+def _loads_lenient(text: str) -> dict:
+	"""Parse the triage JSON out of model text that may be wrapped in prose.
+
+	``claude -p`` is a full agent, not a constrained JSON API: despite the
+	"respond with ONLY JSON" instruction it intermittently adds a prose preamble
+	before the object or commentary after it. The clean/fenced case parses
+	directly; otherwise scan for the first balanced ``{…}`` object anywhere in
+	the text (preferring one that carries a ``changes`` key), ignoring anything
+	before or after it.
+	"""
+	stripped = _strip_code_fence(text.strip())
+	try:
+		obj = json.loads(stripped)
+		if isinstance(obj, dict):
+			return obj
+	except json.JSONDecodeError:
+		pass
+
+	decoder = json.JSONDecoder()
+	first_dict: dict | None = None
+	idx = text.find("{")
+	while idx != -1:
+		try:
+			candidate, _ = decoder.raw_decode(text, idx)
+		except json.JSONDecodeError:
+			candidate = None
+		if isinstance(candidate, dict):
+			if "changes" in candidate:
+				return candidate
+			if first_dict is None:
+				first_dict = candidate
+		idx = text.find("{", idx + 1)
+	if first_dict is not None:
+		return first_dict
+	raise json.JSONDecodeError("no JSON object found in result", text, 0)
+
+
 def _parse_response(stdout: str) -> dict:
 	"""Parse the claude CLI stdout envelope and extract the inner triage JSON."""
 	envelope = json.loads(stdout)
 	if isinstance(envelope, dict) and "result" in envelope:
 		inner = envelope["result"]
 		if isinstance(inner, str):
-			return json.loads(_strip_code_fence(inner))
+			return _loads_lenient(inner)
 		return inner
 	# Fallback: stdout may already be the inner shape (format drift)
-	return json.loads(_strip_code_fence(stdout))
+	return _loads_lenient(stdout)
 
 
 # ---------------------------------------------------------------------------
@@ -163,6 +200,14 @@ class ClaudeCliTriager:
 			if not isinstance(records_raw, list):
 				raise ValueError("'changes' is not a list")
 		except Exception as exc:
+			logger.warning(
+				"triage parse failure: %s | rc=%s stdout_len=%d stderr=%r | raw stdout: %r",
+				exc,
+				proc.returncode,
+				len(proc.stdout),
+				(proc.stderr or "")[:500],
+				proc.stdout[:4000],
+			)
 			return TriageResult(
 				changes=changes,
 				unavailable=f"could not parse claude response: {exc}",

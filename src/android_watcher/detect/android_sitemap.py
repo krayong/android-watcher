@@ -474,7 +474,13 @@ class AndroidSitemapDetector:
 		# First-ever baseline: record lastmod with empty hash, no fetch.
 		for loc, lastmod in fetchfree:
 			store.upsert_snapshot(
-				source.id, loc, signal_type="sitemap", content_hash="", lastmod=lastmod, excerpt=""
+				source.id,
+				loc,
+				signal_type="sitemap",
+				content_hash="",
+				lastmod=lastmod,
+				excerpt="",
+				content_text="",
 			)
 		if fetchfree:
 			logger.info("%s: %d new URL(s) baselined fetch-free", source.id, len(fetchfree))
@@ -521,6 +527,7 @@ class AndroidSitemapDetector:
 						snap = store.get_snapshot(source.id, loc)
 						prior = snap.content_hash if snap is not None else ""
 						excerpt = snap.excerpt if snap is not None else ""
+						content_text = snap.content_text if snap is not None else ""
 						store.upsert_snapshot(
 							source.id,
 							loc,
@@ -528,6 +535,7 @@ class AndroidSitemapDetector:
 							content_hash=prior,
 							lastmod=lastmod,
 							excerpt=excerpt,
+							content_text=content_text,
 						)
 				if change is not None:
 					changes.append(change)

@@ -34,6 +34,7 @@ class FakeStore:
 		content_hash: str,
 		lastmod: str,
 		excerpt: str,
+		content_text: str = "",
 	) -> None:
 		self.snaps[(source_id, url)] = Snapshot(
 			source_id=source_id,
@@ -43,6 +44,7 @@ class FakeStore:
 			lastmod=lastmod,
 			excerpt=excerpt,
 			fetched_at=None,  # type: ignore[arg-type]
+			content_text=content_text,
 		)
 
 

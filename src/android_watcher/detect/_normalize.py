@@ -6,6 +6,7 @@ Later detectors (sitemap content-confirm, etc.) import from here.
 
 from __future__ import annotations
 
+import difflib
 import hashlib
 import re
 from html.parser import HTMLParser
@@ -150,6 +151,39 @@ def normalize_text(html_fragment: str) -> str:
 def content_hash(text: str) -> str:
 	"""SHA-256 of the normalised text (hex string)."""
 	return hashlib.sha256(text.encode()).hexdigest()
+
+
+def _sentences(text: str) -> list[str]:
+	"""Split collapsed one-line text into sentence-ish units for diffing.
+
+	``normalize_text`` flattens newlines, so a line-based diff would treat each
+	page as a single line and report the whole thing as changed. Splitting on
+	sentence boundaries gives units that align: shared nav/boilerplate sentences
+	are identical run-to-run and drop out of the diff, leaving the body change.
+	"""
+	return [s for s in re.split(r"(?<=[.!?])\s+", text) if s]
+
+
+def diff_excerpt(old_text: str, new_text: str, *, cap: int = 2000) -> str:
+	"""A unified diff of two normalized page texts, length-capped for triage.
+
+	Unchanged shared content (site nav, headers, boilerplate) matches and is
+	excluded; only the changed sentences carry ``+``/``-`` markers. When there is
+	no prior text to diff against (a first content capture), fall back to a plain
+	excerpt of the new text so triage still gets something to read.
+	"""
+	if not old_text:
+		return new_text[:cap]
+	diff = "\n".join(
+		difflib.unified_diff(
+			_sentences(old_text),
+			_sentences(new_text),
+			fromfile="before",
+			tofile="after",
+			lineterm="",
+		)
+	)
+	return diff[:cap]
 
 
 class _TitleExtractor(HTMLParser):

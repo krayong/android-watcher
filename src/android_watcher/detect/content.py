@@ -13,13 +13,13 @@ a warning and ``doctor`` surfaces the condition.
 
 from __future__ import annotations
 
-import difflib
 import logging
 
 from ..models import Change, Source
 from ._normalize import (
 	EMPTY_RENDER_THRESHOLD,
 	content_hash,
+	diff_excerpt,
 	extract_main,
 	extract_title,
 	normalize_text,
@@ -63,21 +63,14 @@ class ContentDetector:
 				content_hash=new_hash,
 				lastmod="",
 				excerpt=text[:500],
+				content_text=text,
 			)
 			return []
 
 		if snap.content_hash == new_hash:
 			return []
 
-		raw_diff = "\n".join(
-			difflib.unified_diff(
-				snap.excerpt.splitlines(),
-				text.splitlines(),
-				fromfile="before",
-				tofile="after",
-				lineterm="",
-			)
-		)
+		raw_diff = diff_excerpt(snap.content_text, text)
 
 		store.upsert_snapshot(
 			source.id,
@@ -86,6 +79,7 @@ class ContentDetector:
 			content_hash=new_hash,
 			lastmod="",
 			excerpt=text[:500],
+			content_text=text,
 		)
 		return [
 			Change(
@@ -93,7 +87,7 @@ class ContentDetector:
 				url=source.url,
 				change_kind="updated",
 				title=extract_title(res.text) or source.name,
-				raw_diff=raw_diff[:2000],
+				raw_diff=raw_diff,
 				fetched_hash=new_hash,
 			)
 		]
